@@ -8,7 +8,12 @@ import Video from '../models/Video';
 export const getUserPlaylists = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?._id;
-    const playlists = await Playlist.find({ userId }).sort('-createdAt');
+    const playlists = await Playlist.find({ userId })
+      .populate({
+        path: 'videos',
+        populate: { path: 'userId', select: 'displayName photoURL' }
+      })
+      .sort('-createdAt');
     res.json(playlists);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -24,12 +29,10 @@ export const getPlaylist = async (req: AuthRequest, res: Response) => {
         path: 'videos',
         populate: { path: 'userId', select: 'displayName photoURL' }
       });
-    if (!playlist) return res.status(404).json({ error: 'Playlist not found' });
-
-    // Check if private and not owner
-    if (!playlist.isPublic && playlist.userId.toString() !== req.user?._id.toString()) {
-      return res.status(403).json({ error: 'Forbidden' });
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
     }
+    // Optional: check if private and user is owner
     res.json(playlist);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });

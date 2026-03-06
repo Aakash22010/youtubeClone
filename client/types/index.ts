@@ -45,8 +45,8 @@ export interface Playlist {
   _id: string;
   name: string;
   description?: string;
-  userId: string;
-  videos: string[];
+  userId: string | User;
+  videos: Video[];
   isPublic: boolean;
   createdAt: string;
   updatedAt: string;
