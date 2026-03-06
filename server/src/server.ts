@@ -13,7 +13,9 @@ connectDB();
 
 // Middleware
 app.use(cors({
-  origin: 'https://youtube-clone-tawny-nu.vercel.app',
+  origin: process.env.NODE_ENV === 'development' 
+    ? process.env.FRONTEND_URL 
+    : 'http://localhost:3000',
   credentials: true,
 }));
 app.use(express.json());
