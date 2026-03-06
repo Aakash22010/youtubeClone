@@ -6,6 +6,7 @@ import Playlist from '../models/Playlist';
 export interface AuthRequest extends Request {
   user?: IUser;
   firebaseUid?: string;
+  file?: Express.Multer.File;
 }
 
 const authMiddleware = async (

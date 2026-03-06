@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Comment from '../models/Comment';
 import { AuthRequest } from '../middleware/auth';
+import { OptionalAuthRequest } from '../middleware/optionalAuth';
 
 // @desc    Get comments for a video
 // @route   GET /api/comments/video/:videoId
