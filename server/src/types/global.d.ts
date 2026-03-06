@@ -1,3 +1,6 @@
+declare module 'express';
+declare module 'multer';
+declare module 'cors';
 import { Request } from 'express';
 import { IUser } from '../models/User';
 
