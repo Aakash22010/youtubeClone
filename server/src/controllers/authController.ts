@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
-import { OptionalAuthRequest } from '../middleware/optionalAuth';
 
 export const login = async (req: AuthRequest, res: Response) => {
   // req.user is already attached by auth middleware

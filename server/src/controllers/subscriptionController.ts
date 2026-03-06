@@ -1,7 +1,6 @@
 import { Response } from 'express';
 import User from '../models/User';
 import { AuthRequest } from '../middleware/auth';
-import { OptionalAuthRequest } from '../middleware/optionalAuth';
 
 // @desc    Toggle subscription to a channel
 // @route   POST /api/subscriptions/:channelId

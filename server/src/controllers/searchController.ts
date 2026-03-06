@@ -1,8 +1,6 @@
 import { Request, Response } from 'express';
 import Video from '../models/Video';
 import User from '../models/User';
-import { AuthRequest } from '../middleware/auth';
-import { OptionalAuthRequest } from '../middleware/optionalAuth';
 
 export const search = async (req: Request, res: Response) => {
   try {

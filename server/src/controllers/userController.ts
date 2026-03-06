@@ -3,7 +3,6 @@ import cloudinary from '../utils/cloudinary';
 import { AuthRequest } from '../middleware/auth';
 import User from '../models/User';
 import Video from '../models/Video';
-import { OptionalAuthRequest } from '../middleware/optionalAuth';
 
 // @desc    Get user by ID
 // @route   GET /api/users/:id

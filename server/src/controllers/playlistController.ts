@@ -2,7 +2,6 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import Playlist from '../models/Playlist';
 import Video from '../models/Video';
-import { OptionalAuthRequest } from '../middleware/optionalAuth';
 
 // @desc    Get all playlists for current user
 // @route   GET /api/playlists

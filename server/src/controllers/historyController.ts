@@ -2,7 +2,6 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import WatchHistory from '../models/WatchHistory';
 import Video from '../models/Video';
-import { OptionalAuthRequest } from '../middleware/optionalAuth';
 
 // Record a view (add or update timestamp)
 export const addToHistory = async (req: AuthRequest, res: Response) => {

@@ -6,7 +6,6 @@ export interface OptionalAuthRequest extends Request {
   user?: IUser;
   firebaseUid?: string;
   anonymousId?: string;
-  file?: Express.Multer.File;
 }
 
 const optionalAuth = async (req: OptionalAuthRequest, res: Response, next: NextFunction) => {
