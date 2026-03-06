@@ -36,6 +36,7 @@ export interface Comment {
   parentComment: string | null;
   likes: string[];
   dislikes: string[];
+  city: string;
   createdAt: string;
   updatedAt: string;
   replies?: Comment[]; // for nested

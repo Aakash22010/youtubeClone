@@ -3,6 +3,9 @@ import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Comment } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
+import { getUserCity } from '../utils/location';
+import { translateText } from '../utils/translate';
+import axios from 'axios';
 
 interface CommentSectionProps {
   videoId: string;
@@ -13,6 +16,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
+  const [userCity, setUserCity] = useState<string>('');
 
   useEffect(() => {
     const fetchComments = async () => {
@@ -20,6 +24,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
       setComments(data);
     };
     fetchComments();
+    getUserCity().then(setUserCity);
   }, [videoId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,18 +35,24 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
         content: newComment,
         videoId,
         parentComment: replyingTo?._id || null,
+        city: userCity,
       };
       const { data } = await api.post<Comment>('/comments', payload);
       if (replyingTo) {
-        // Add reply to parent comment (simplified: just append to replies)
-        setComments(prev => prev.map(c => c._id === replyingTo._id ? { ...c, replies: [...(c.replies || []), data] } : c));
+        setComments(prev =>
+          prev.map(c => c._id === replyingTo._id ? { ...c, replies: [...(c.replies || []), data] } : c)
+        );
         setReplyingTo(null);
       } else {
         setComments(prev => [data, ...prev]);
       }
       setNewComment('');
     } catch (error) {
-      console.error(error);
+      if (axios.isAxiosError(error) && error.response?.status === 400) {
+        alert(error.response.data.error || 'Comment contains disallowed special characters.');
+      } else {
+        console.error(error);
+      }
     }
   };
 
@@ -58,14 +69,23 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
             rows={3}
           />
           {replyingTo && (
-            <button type="button" onClick={() => setReplyingTo(null)} className="text-sm text-blue-500">Cancel reply</button>
+            <button type="button" onClick={() => setReplyingTo(null)} className="text-sm text-blue-500">
+              Cancel reply
+            </button>
           )}
-          <button type="submit" className="mt-2 bg-blue-600 text-white px-4 py-2 rounded">Submit</button>
+          <button type="submit" className="mt-2 bg-blue-600 text-white px-4 py-2 rounded">
+            Submit
+          </button>
         </form>
       )}
       <div className="space-y-4">
         {comments.map(comment => (
-          <CommentItem key={comment._id} comment={comment} setReplyingTo={setReplyingTo} />
+          <CommentItem
+            key={comment._id}
+            comment={comment}
+            setReplyingTo={setReplyingTo}
+            onDelete={(deletedId) => setComments(prev => prev.filter(c => c._id !== deletedId))}
+          />
         ))}
       </div>
     </div>
@@ -75,29 +95,30 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
 interface CommentItemProps {
   comment: Comment;
   setReplyingTo: (comment: Comment) => void;
+  onDelete?: (id: string) => void;
 }
 
-const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo }) => {
+const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDelete }) => {
   const { user } = useAuth();
   const [likes, setLikes] = useState(comment.likes.length);
   const [dislikes, setDislikes] = useState(comment.dislikes.length);
   const [userLiked, setUserLiked] = useState(user ? comment.likes.includes(user._id) : false);
   const [userDisliked, setUserDisliked] = useState(user ? comment.dislikes.includes(user._id) : false);
+  const [translated, setTranslated] = useState<string | null>(null);
+  const [translating, setTranslating] = useState(false);
 
   const handleLike = async () => {
     if (!user) return;
     try {
-      await api.post(`/comments/${comment._id}/like`);
+      const { data } = await api.post(`/comments/${comment._id}/like`);
+      setLikes(data.likes);
+      setDislikes(data.dislikes);
+      // Optimistic update for local state
       if (userLiked) {
-        setLikes(prev => prev - 1);
         setUserLiked(false);
       } else {
-        setLikes(prev => prev + 1);
-        if (userDisliked) {
-          setDislikes(prev => prev - 1);
-          setUserDisliked(false);
-        }
         setUserLiked(true);
+        setUserDisliked(false);
       }
     } catch (error) {
       console.error(error);
@@ -107,21 +128,35 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo }) => 
   const handleDislike = async () => {
     if (!user) return;
     try {
-      await api.post(`/comments/${comment._id}/dislike`);
+      const { data } = await api.post(`/comments/${comment._id}/dislike`);
+      if (data.deleted) {
+        // Comment was auto‑deleted due to low rating
+        onDelete?.(comment._id);
+        return;
+      }
+      setLikes(data.likes);
+      setDislikes(data.dislikes);
       if (userDisliked) {
-        setDislikes(prev => prev - 1);
         setUserDisliked(false);
       } else {
-        setDislikes(prev => prev + 1);
-        if (userLiked) {
-          setLikes(prev => prev - 1);
-          setUserLiked(false);
-        }
         setUserDisliked(true);
+        setUserLiked(false);
       }
     } catch (error) {
       console.error(error);
     }
+  };
+
+  const handleTranslate = async () => {
+    if (translated) {
+      setTranslated(null);
+      return;
+    }
+    setTranslating(true);
+    const targetLang = navigator.language.split('-')[0] || 'en';
+    const result = await translateText(comment.content, targetLang);
+    setTranslated(result);
+    setTranslating(false);
   };
 
   return (
@@ -132,22 +167,43 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo }) => 
         className="w-8 h-8 rounded-full"
       />
       <div className="flex-1">
-        <p className="font-semibold">{comment.userId.displayName}</p>
-        <p>{comment.content}</p>
+        <div className="flex items-center space-x-2">
+          <p className="font-semibold">{comment.userId.displayName}</p>
+          {comment.city && (
+            <span className="text-xs text-gray-500 dark:text-gray-400">📍 {comment.city}</span>
+          )}
+        </div>
+        <p>{translated || comment.content}</p>
+        {translated && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Original: {comment.content}
+          </p>
+        )}
         <div className="flex items-center space-x-4 mt-1 text-sm">
-          <button onClick={handleLike} className="flex items-center space-x-1">
+          <button onClick={handleLike} className="flex items-center space-x-1 hover:text-blue-600">
             <span>👍</span> <span>{likes}</span>
           </button>
-          <button onClick={handleDislike} className="flex items-center space-x-1">
+          <button onClick={handleDislike} className="flex items-center space-x-1 hover:text-red-600">
             <span>👎</span> <span>{dislikes}</span>
           </button>
-          <button onClick={() => setReplyingTo(comment)} className="text-blue-500">Reply</button>
+          <button onClick={() => setReplyingTo(comment)} className="text-blue-500 hover:text-blue-700">
+            Reply
+          </button>
+          <button onClick={handleTranslate} className="text-blue-500 hover:text-blue-700">
+            {translating ? 'Translating...' : translated ? 'Original' : 'Translate'}
+          </button>
         </div>
-        {/* Replies (if any) - for simplicity we don't fetch nested here, but you could */}
+
+        {/* Replies */}
         {comment.replies && comment.replies.length > 0 && (
           <div className="ml-8 mt-2 space-y-2">
             {comment.replies.map(reply => (
-              <CommentItem key={reply._id} comment={reply} setReplyingTo={setReplyingTo} />
+              <CommentItem
+                key={reply._id}
+                comment={reply}
+                setReplyingTo={setReplyingTo}
+                onDelete={onDelete}
+              />
             ))}
           </div>
         )}
