@@ -51,7 +51,7 @@ const SaveToPlaylistButton: React.FC<SaveToPlaylistButtonProps> = ({ videoId }) 
         setPlaylists(prev =>
           prev.map(p =>
             p._id === playlist._id
-              ? { ...p, videos: p.videos.filter((id: string) => id !== videoId) }
+              ? { ...p, videos: p.videos.filter(id => id !== videoId) }
               : p
           )
         );
