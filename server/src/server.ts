@@ -13,7 +13,9 @@ connectDB();
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL,
+  origin: process.env.NODE_ENV === 'production' 
+    ? 'https://your-frontend.vercel.app' 
+    : 'http://localhost:3000',
   credentials: true,
 }));
 app.use(express.json());
@@ -52,3 +54,5 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+export default app;
