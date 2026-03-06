@@ -1,5 +1,5 @@
 export const getUserCity = (): Promise<string> => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     if (!navigator.geolocation) {
       resolve('Unknown');
       return;
@@ -18,7 +18,7 @@ export const getUserCity = (): Promise<string> => {
           resolve('Unknown');
         }
       },
-      () => resolve('Unknown') // user denied or error
+      () => resolve('Unknown')
     );
   });
 };

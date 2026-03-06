@@ -10,9 +10,20 @@ export const getComments = async (req: Request, res: Response) => {
     const comments = await Comment.find({ videoId, parentComment: null })
       .populate('userId', 'displayName photoURL')
       .sort('-createdAt');
-    // For each comment, fetch replies (simplified: client can fetch separately or we populate)
-    // We'll just return top-level, client can fetch replies per comment.
-    res.json(comments);
+
+    const commentsWithReplies = await Promise.all(
+      comments.map(async (comment) => {
+        const replies = await Comment.find({ parentComment: comment._id })
+          .populate('userId', 'displayName photoURL')
+          .sort('createdAt');
+        return {
+          ...comment.toObject(),
+          replies,
+        };
+      })
+    );
+
+    res.json(commentsWithReplies);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }

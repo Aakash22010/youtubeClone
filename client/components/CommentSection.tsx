@@ -5,6 +5,7 @@ import { Comment } from '../types';
 import { getAvatarUrl } from '../utils/avatar';
 import { getUserCity } from '../utils/location';
 import { translateText } from '../utils/translate';
+import { languages } from '../utils/languages';
 import axios from 'axios';
 
 interface CommentSectionProps {
@@ -39,8 +40,12 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
       };
       const { data } = await api.post<Comment>('/comments', payload);
       if (replyingTo) {
+        // Add reply to parent comment
         setComments(prev =>
-          prev.map(c => c._id === replyingTo._id ? { ...c, replies: [...(c.replies || []), data] } : c)
+          prev.map(c => c._id === replyingTo._id
+            ? { ...c, replies: [...(c.replies || []), data] }
+            : c
+          )
         );
         setReplyingTo(null);
       } else {
@@ -106,6 +111,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
   const [userDisliked, setUserDisliked] = useState(user ? comment.dislikes.includes(user._id) : false);
   const [translated, setTranslated] = useState<string | null>(null);
   const [translating, setTranslating] = useState(false);
+  const [selectedLang, setSelectedLang] = useState('en');
 
   const handleLike = async () => {
     if (!user) return;
@@ -113,7 +119,6 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
       const { data } = await api.post(`/comments/${comment._id}/like`);
       setLikes(data.likes);
       setDislikes(data.dislikes);
-      // Optimistic update for local state
       if (userLiked) {
         setUserLiked(false);
       } else {
@@ -130,7 +135,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
     try {
       const { data } = await api.post(`/comments/${comment._id}/dislike`);
       if (data.deleted) {
-        // Comment was auto‑deleted due to low rating
+        // Comment was auto‑deleted due to 2 dislikes
         onDelete?.(comment._id);
         return;
       }
@@ -153,8 +158,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
       return;
     }
     setTranslating(true);
-    const targetLang = navigator.language.split('-')[0] || 'en';
-    const result = await translateText(comment.content, targetLang);
+    const result = await translateText(comment.content, selectedLang);
     setTranslated(result);
     setTranslating(false);
   };
@@ -179,7 +183,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
             Original: {comment.content}
           </p>
         )}
-        <div className="flex items-center space-x-4 mt-1 text-sm">
+        <div className="flex items-center space-x-4 mt-1 text-sm flex-wrap gap-2">
           <button onClick={handleLike} className="flex items-center space-x-1 hover:text-blue-600">
             <span>👍</span> <span>{likes}</span>
           </button>
@@ -189,12 +193,23 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
           <button onClick={() => setReplyingTo(comment)} className="text-blue-500 hover:text-blue-700">
             Reply
           </button>
-          <button onClick={handleTranslate} className="text-blue-500 hover:text-blue-700">
-            {translating ? 'Translating...' : translated ? 'Original' : 'Translate'}
-          </button>
+          <div className="flex items-center space-x-1">
+            <select
+              value={selectedLang}
+              onChange={(e) => setSelectedLang(e.target.value)}
+              className="text-xs bg-transparent border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5"
+            >
+              {languages.map(lang => (
+                <option key={lang.code} value={lang.code}>{lang.name}</option>
+              ))}
+            </select>
+            <button onClick={handleTranslate} className="text-blue-500 hover:text-blue-700">
+              {translating ? '...' : translated ? 'Original' : 'Translate'}
+            </button>
+          </div>
         </div>
 
-        {/* Replies */}
+        {/* Nested replies */}
         {comment.replies && comment.replies.length > 0 && (
           <div className="ml-8 mt-2 space-y-2">
             {comment.replies.map(reply => (
