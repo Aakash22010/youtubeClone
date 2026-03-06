@@ -195,20 +195,44 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
           <button onClick={() => setReplyingTo(comment)} className="text-blue-500 hover:text-blue-700">
             Reply
           </button>
-          <div className="flex items-center space-x-1">
-            <select
-              value={selectedLang}
-              onChange={(e) => setSelectedLang(e.target.value)}
-              className="text-xs bg-transparent border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5"
-            >
-              {languages.map(lang => (
-                <option key={lang.code} value={lang.code}>{lang.name}</option>
-              ))}
-            </select>
-            <button onClick={handleTranslate} className="text-blue-500 hover:text-blue-700">
-              {translating ? '...' : translated ? 'Original' : 'Translate'}
-            </button>
-          </div>
+          <div className="flex items-center gap-1.5 mt-1">
+  <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full px-2 py-0.5">
+    <span className="text-gray-400 text-xs">🌐</span>
+    <select
+      value={selectedLang}
+      onChange={(e) => setSelectedLang(e.target.value)}
+      className="text-xs bg-transparent text-gray-600 dark:text-gray-300 outline-none cursor-pointer pr-1"
+    >
+      {languages.map(lang => (
+        <option key={lang.code} value={lang.code}>{lang.name}</option>
+      ))}
+    </select>
+  </div>
+
+  <button
+    onClick={handleTranslate}
+    disabled={translating}
+    className={`
+      text-xs px-3 py-0.5 rounded-full border font-medium transition-all duration-150
+      ${translating
+        ? 'text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed'
+        : translated
+          ? 'text-orange-500 border-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950'
+          : 'text-blue-500 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950'
+      }
+    `}
+  >
+    {translating ? (
+      <span className="flex items-center gap-1">
+        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"/>
+        </svg>
+        Translating
+      </span>
+    ) : translated ? '↩ Original' : '⇄ Translate'}
+  </button>
+</div>
         </div>
 
         {/* Nested replies */}
