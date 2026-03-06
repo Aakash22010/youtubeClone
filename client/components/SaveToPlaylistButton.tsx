@@ -44,14 +44,14 @@ const SaveToPlaylistButton: React.FC<SaveToPlaylistButtonProps> = ({ videoId }) 
   };
 
   const toggleVideoInPlaylist = async (playlist: Playlist) => {
-    const isInPlaylist = playlist.videos.includes(videoId as any);
+    const isInPlaylist = playlist.videos.some((v) => v._id === videoId);
     try {
       if (isInPlaylist) {
         await api.delete(`/playlists/${playlist._id}/videos/${videoId}`);
         setPlaylists(prev =>
           prev.map(p =>
             p._id === playlist._id
-              ? { ...p, videos: p.videos.filter(id => id !== videoId) }
+              ? { ...p, videos: p.videos.filter((v) => v._id !== videoId) }
               : p
           )
         );
@@ -91,7 +91,7 @@ const SaveToPlaylistButton: React.FC<SaveToPlaylistButtonProps> = ({ videoId }) 
             <div className="px-4 py-2 text-sm text-gray-500">No playlists</div>
           ) : (
             playlists.map((playlist) => {
-              const isSaved = playlist.videos.includes(videoId as any);
+              const isSaved = playlist.videos.some((v) => v._id === videoId);
               return (
                 <button
                   key={playlist._id}
