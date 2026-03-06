@@ -13,8 +13,11 @@ connectDB();
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL,
-  credentials: true,
+  origin: [
+    "http://localhost:3000",
+    "https://youtube-clone-tawny-nu.vercel.app"
+  ],
+  credentials: true
 }));
 app.use(express.json());
 
