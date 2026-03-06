@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import Comment from '../models/Comment';
+import Comment, { IComment } from '../models/Comment';
 import { AuthRequest } from '../middleware/auth';
 
-// @desc    Get comments for a video
+// @desc    Get comments for a video (with nested replies)
 // @route   GET /api/comments/video/:videoId
 export const getComments = async (req: Request, res: Response) => {
   try {
@@ -35,8 +35,8 @@ export const addComment = async (req: AuthRequest, res: Response) => {
   try {
     const { content, videoId, parentComment, city } = req.body;
 
-    // Block comments with special characters (allow only letters, numbers, spaces, and common punctuation)
-    const allowedRegex = /^[a-zA-Z0-9\s.,!?;:\-_\'\"()\[\]{}@#$%^&*+=<>]+$/u;
+    // Block special characters (allow only letters, numbers, spaces, and common punctuation)
+    const allowedRegex = /^[a-zA-Z0-9\s.,!?;:\-_'"()\[\]{}@#$%^&*+=<>]+$/u;
     if (!allowedRegex.test(content)) {
       return res.status(400).json({ error: 'Comment contains disallowed special characters.' });
     }
@@ -48,6 +48,7 @@ export const addComment = async (req: AuthRequest, res: Response) => {
       parentComment: parentComment || null,
       city: city || 'Unknown',
     });
+
     await comment.populate('userId', 'displayName photoURL');
     res.status(201).json(comment);
   } catch (error) {
@@ -61,17 +62,18 @@ export const likeComment = async (req: AuthRequest, res: Response) => {
   try {
     const comment = await Comment.findById(req.params.id);
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
-    const userId = req.user!._id;
-    if (comment.likes.some(id => id.toString() === userId.toString())) {
-      comment.likes = comment.likes.filter(
-        id => id.toString() !== userId.toString()
-      );
+
+    const userId = req.user!._id.toString();
+
+    if (comment.likes.some(id => id.toString() === userId)) {
+      // User already liked → remove like
+      comment.likes = comment.likes.filter(id => id.toString() !== userId);
     } else {
-      comment.likes.push(userId);
-      comment.dislikes = comment.dislikes.filter(
-        id => id.toString() !== userId.toString()
-      );
+      // Add like and remove dislike if present
+      comment.likes.push(req.user!._id);
+      comment.dislikes = comment.dislikes.filter(id => id.toString() !== userId);
     }
+
     await comment.save();
     res.json({ likes: comment.likes.length, dislikes: comment.dislikes.length });
   } catch (error) {
@@ -79,34 +81,33 @@ export const likeComment = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// @desc    Dislike a comment
+// @desc    Dislike a comment (auto‑delete after 2 dislikes)
 // @route   POST /api/comments/:id/dislike
 export const dislikeComment = async (req: AuthRequest, res: Response) => {
   try {
     const comment = await Comment.findById(req.params.id);
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
-    const userId = req.user!._id;
 
-    // Toggle dislike
-    if (comment.dislikes.some(id => id.toString() === userId.toString())) {
-      comment.dislikes = comment.dislikes.filter(
-        id => id.toString() !== userId.toString()
-      );
+    const userId = req.user!._id.toString();
+
+    if (comment.dislikes.some(id => id.toString() === userId)) {
+      // User already disliked → remove dislike
+      comment.dislikes = comment.dislikes.filter(id => id.toString() !== userId);
     } else {
-      comment.dislikes.push(userId);
-      comment.likes = comment.likes.filter(
-        id => id.toString() !== userId.toString()
-      );
+      // Add dislike and remove like if present
+      comment.dislikes.push(req.user!._id);
+      comment.likes = comment.likes.filter(id => id.toString() !== userId);
     }
+
     await comment.save();
 
-    // Auto‑delete if dislike count reaches 2
+    // Auto‑delete if total dislikes reach 2
     if (comment.dislikes.length >= 2) {
       await Comment.findByIdAndDelete(comment._id);
-      return res.json({ message: 'Comment removed due to low rating', deleted: true });
+      return res.json({ deleted: true, message: 'Comment removed due to low rating' });
     }
 
-    res.json({ likes: comment.likes.length, dislikes: comment.dislikes.length });
+    res.json({ likes: comment.likes.length, dislikes: comment.dislikes.length, deleted: false });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }

@@ -173,8 +173,10 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
       <div className="flex-1">
         <div className="flex items-center space-x-2">
           <p className="font-semibold">{comment.userId.displayName}</p>
-          {comment.city && (
+          {comment.city ? (
             <span className="text-xs text-gray-500 dark:text-gray-400">📍 {comment.city}</span>
+          ) : (
+            <span className="text-xs text-gray-500 dark:text-gray-400">📍 Unknown</span>
           )}
         </div>
         <p>{translated || comment.content}</p>
