@@ -14,11 +14,16 @@ export const getUserCity = (): Promise<string> => {
           const data = await response.json();
           const city = data.address?.city || data.address?.town || data.address?.village || 'Unknown';
           resolve(city);
-        } catch {
+        } catch (error) {
+          console.error('Reverse geocoding failed', error);
           resolve('Unknown');
         }
       },
-      () => resolve('Unknown')
+      (error) => {
+        console.warn('Geolocation error:', error);
+        resolve('Unknown');
+      },
+      { timeout: 10000 }
     );
   });
 };

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Comment } from '../types';
@@ -18,29 +18,54 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
   const [userCity, setUserCity] = useState<string>('');
+  const [locationLoading, setLocationLoading] = useState(false);
+  const locationFetched = useRef(false);
 
+  // Fetch location only once when component mounts
+  useEffect(() => {
+    const fetchLocation = async () => {
+      if (!user) return; // only for logged-in users
+      setLocationLoading(true);
+      const city = await getUserCity();
+      setUserCity(city);
+      setLocationLoading(false);
+      locationFetched.current = true;
+    };
+    fetchLocation();
+  }, [user]);
+
+  // Fetch comments
   useEffect(() => {
     const fetchComments = async () => {
       const { data } = await api.get<Comment[]>(`/comments/video/${videoId}`);
       setComments(data);
     };
     fetchComments();
-    getUserCity().then(setUserCity);
   }, [videoId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim()) return;
+
+    // If location is still loading, wait a bit (optional)
+    let cityToSend = userCity;
+    if (!cityToSend && !locationFetched.current) {
+      // try to get location again
+      setLocationLoading(true);
+      cityToSend = await getUserCity();
+      setUserCity(cityToSend);
+      setLocationLoading(false);
+    }
+
     try {
       const payload = {
         content: newComment,
         videoId,
         parentComment: replyingTo?._id || null,
-        city: userCity,
+        city: cityToSend || 'Unknown',
       };
       const { data } = await api.post<Comment>('/comments', payload);
       if (replyingTo) {
-        // Add reply to parent comment
         setComments(prev =>
           prev.map(c => c._id === replyingTo._id
             ? { ...c, replies: [...(c.replies || []), data] }
@@ -61,6 +86,21 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
     }
   };
 
+  // Recursive delete function for nested comments
+  const removeComment = (id: string) => {
+    setComments(prev => {
+      const removeFromTree = (comments: Comment[]): Comment[] => {
+        return comments
+          .filter(c => c._id !== id)
+          .map(c => ({
+            ...c,
+            replies: c.replies ? removeFromTree(c.replies) : [],
+          }));
+      };
+      return removeFromTree(prev);
+    });
+  };
+
   return (
     <div className="mt-8">
       <h3 className="text-xl font-semibold mb-4">Comments</h3>
@@ -78,9 +118,18 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
               Cancel reply
             </button>
           )}
-          <button type="submit" className="mt-2 bg-blue-600 text-white px-4 py-2 rounded">
-            Submit
-          </button>
+          <div className="flex items-center mt-2">
+            {locationLoading && (
+              <span className="text-xs text-gray-500 mr-2">Detecting location...</span>
+            )}
+            <button
+              type="submit"
+              disabled={locationLoading}
+              className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+            >
+              Submit
+            </button>
+          </div>
         </form>
       )}
       <div className="space-y-4">
@@ -89,7 +138,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
             key={comment._id}
             comment={comment}
             setReplyingTo={setReplyingTo}
-            onDelete={(deletedId) => setComments(prev => prev.filter(c => c._id !== deletedId))}
+            onDelete={removeComment}
           />
         ))}
       </div>
@@ -135,7 +184,6 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
     try {
       const { data } = await api.post(`/comments/${comment._id}/dislike`);
       if (data.deleted) {
-        // Comment was auto‑deleted due to 2 dislikes
         onDelete?.(comment._id);
         return;
       }
@@ -173,10 +221,10 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
       <div className="flex-1">
         <div className="flex items-center space-x-2">
           <p className="font-semibold">{comment.userId.displayName}</p>
-          {comment.city ? (
+          {comment.city && comment.city !== 'Unknown' ? (
             <span className="text-xs text-gray-500 dark:text-gray-400">📍 {comment.city}</span>
           ) : (
-            <span className="text-xs text-gray-500 dark:text-gray-400">📍 Unknown</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">📍 Location unavailable</span>
           )}
         </div>
         <p>{translated || comment.content}</p>
@@ -196,46 +244,45 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
             Reply
           </button>
           <div className="flex items-center gap-1.5 mt-1">
-  <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full px-2 py-0.5">
-    <span className="text-gray-400 text-xs">🌐</span>
-    <select
-      value={selectedLang}
-      onChange={(e) => setSelectedLang(e.target.value)}
-      className="text-xs bg-transparent text-gray-600 dark:text-gray-300 outline-none cursor-pointer pr-1"
-    >
-      {languages.map(lang => (
-        <option key={lang.code} value={lang.code}>{lang.name}</option>
-      ))}
-    </select>
-  </div>
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full px-2 py-0.5">
+              <span className="text-gray-400 text-xs">🌐</span>
+              <select
+                value={selectedLang}
+                onChange={(e) => setSelectedLang(e.target.value)}
+                className="text-xs bg-transparent text-gray-600 dark:text-gray-300 outline-none cursor-pointer pr-1"
+              >
+                {languages.map(lang => (
+                  <option key={lang.code} value={lang.code}>{lang.name}</option>
+                ))}
+              </select>
+            </div>
 
-  <button
-    onClick={handleTranslate}
-    disabled={translating}
-    className={`
+            <button
+              onClick={handleTranslate}
+              disabled={translating}
+              className={`
       text-xs px-3 py-0.5 rounded-full border font-medium transition-all duration-150
       ${translating
-        ? 'text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed'
-        : translated
-          ? 'text-orange-500 border-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950'
-          : 'text-blue-500 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950'
-      }
+                  ? 'text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed'
+                  : translated
+                    ? 'text-orange-500 border-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950'
+                    : 'text-blue-500 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950'
+                }
     `}
-  >
-    {translating ? (
-      <span className="flex items-center gap-1">
-        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"/>
-        </svg>
-        Translating
-      </span>
-    ) : translated ? '↩ Original' : '⇄ Translate'}
-  </button>
-</div>
+            >
+              {translating ? (
+                <span className="flex items-center gap-1">
+                  <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z" />
+                  </svg>
+                  Translating
+                </span>
+              ) : translated ? '↩ Original' : '⇄ Translate'}
+            </button>
+          </div>
         </div>
 
-        {/* Nested replies */}
         {comment.replies && comment.replies.length > 0 && (
           <div className="ml-8 mt-2 space-y-2">
             {comment.replies.map(reply => (
