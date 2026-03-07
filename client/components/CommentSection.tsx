@@ -134,7 +134,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
     }
   };
 
-  // Recursively remove a comment or reply by id (used by auto-dislike AND user delete)
+  // Recursively remove a comment or reply by id
   const removeComment = (id: string) => {
     setComments(prev => {
       const removeFromTree = (list: Comment[]): Comment[] =>
@@ -246,15 +246,11 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
   const [selectedLang, setSelectedLang] = useState('en');
   const translationCache                = useRef<Record<string, string>>({});
 
-  // Custom language dropdown
+  // Custom dropdown
   const [langOpen, setLangOpen] = useState(false);
   const dropdownRef             = useRef<HTMLDivElement>(null);
 
-  // Delete confirmation state
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting]           = useState(false);
-
-  // Close language dropdown on outside click
+  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -265,68 +261,51 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Auto-cancel the delete confirmation after 4 seconds if user does nothing
-  useEffect(() => {
-    if (!confirmDelete) return;
-    const timer = setTimeout(() => setConfirmDelete(false), 4000);
-    return () => clearTimeout(timer);
-  }, [confirmDelete]);
-
-  // ── Ownership check ────────────────────────────────────────────────────────
-  // comment.userId can be a populated object or just an id string — handle both
-  const isOwner = user && (
-    (typeof comment.userId === 'string' && comment.userId === user._id) ||
-    (typeof comment.userId === 'object' && comment.userId._id === user._id)
-  );
-
-  // ── Handlers ───────────────────────────────────────────────────────────────
-
   const handleLike = async () => {
     if (!user) return;
     try {
       const { data } = await api.post(`/comments/${comment._id}/like`);
       setLikes(data.likes);
       setDislikes(data.dislikes);
-      if (userLiked) { setUserLiked(false); }
-      else           { setUserLiked(true); setUserDisliked(false); }
-    } catch (error) { console.error(error); }
+      if (userLiked) {
+        setUserLiked(false);
+      } else {
+        setUserLiked(true);
+        setUserDisliked(false);
+      }
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const handleDislike = async () => {
     if (!user) return;
     try {
       const { data } = await api.post(`/comments/${comment._id}/dislike`);
-      if (data.deleted) { onDelete?.(comment._id); return; }
+      if (data.deleted) {
+        onDelete?.(comment._id);
+        return;
+      }
       setLikes(data.likes);
       setDislikes(data.dislikes);
-      if (userDisliked) { setUserDisliked(false); }
-      else              { setUserDisliked(true); setUserLiked(false); }
-    } catch (error) { console.error(error); }
-  };
-
-  /**
-   * handleDelete — two-step confirmation to prevent accidental removal.
-   * First click → shows a "Confirm?" prompt in place of the trash icon.
-   * Second click → calls DELETE /comments/:id and removes from local tree.
-   */
-  const handleDelete = async () => {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      return;
-    }
-    setDeleting(true);
-    try {
-      await api.delete(`/comments/${comment._id}`);
-      onDelete?.(comment._id);
+      if (userDisliked) {
+        setUserDisliked(false);
+      } else {
+        setUserDisliked(true);
+        setUserLiked(false);
+      }
     } catch (error) {
       console.error(error);
-      setDeleting(false);
-      setConfirmDelete(false);
     }
   };
 
   const handleTranslate = async () => {
-    if (translated) { setTranslated(null); return; }
+    // Toggle off
+    if (translated) {
+      setTranslated(null);
+      return;
+    }
+    // Serve from cache
     if (translationCache.current[selectedLang]) {
       setTranslated(translationCache.current[selectedLang]);
       return;
@@ -338,11 +317,17 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
     setTranslating(false);
   };
 
+  // When lang changes while a translation is showing, auto-translate to the new lang
   const handleLangSelect = async (code: string) => {
     setSelectedLang(code);
     setLangOpen(false);
-    if (!translated) return;
-    if (translationCache.current[code]) { setTranslated(translationCache.current[code]); return; }
+
+    if (!translated) return; // not showing a translation — nothing to update
+
+    if (translationCache.current[code]) {
+      setTranslated(translationCache.current[code]);
+      return;
+    }
     setTranslating(true);
     const result = await translateText(comment.content, code);
     translationCache.current[code] = result;
@@ -352,10 +337,8 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
 
   const currentLang = languages.find(l => l.code === selectedLang);
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
-    <div className="flex space-x-3 group">
+    <div className="flex space-x-3">
       <img
         src={getAvatarUrl(comment.userId.photoURL, comment.userId.displayName)}
         alt={comment.userId.displayName}
@@ -363,59 +346,15 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
       />
       <div className="flex-1 min-w-0">
 
-        {/* Author + city + delete button */}
+        {/* Author + city */}
         <div className="flex items-center gap-2 flex-wrap">
           <p className="font-semibold text-sm">{comment.userId.displayName}</p>
-
           {comment.city && comment.city !== 'Unknown' ? (
             <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
               📍 {comment.city}
             </span>
           ) : (
             <span className="text-xs text-gray-400 dark:text-gray-600">📍 Location unavailable</span>
-          )}
-
-          {/* Delete — only visible to the comment owner */}
-          {isOwner && (
-            <div className="ml-auto flex items-center gap-1.5">
-              {confirmDelete ? (
-                <>
-                  <span className="text-xs text-gray-400">Delete this comment?</span>
-                  <button
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    className="text-xs px-2 py-0.5 rounded bg-red-500 hover:bg-red-600 text-white font-medium transition disabled:opacity-50"
-                  >
-                    {deleting ? (
-                      <span className="flex items-center gap-1">
-                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z" />
-                        </svg>
-                        Deleting
-                      </span>
-                    ) : 'Yes, delete'}
-                  </button>
-                  <button
-                    onClick={() => setConfirmDelete(false)}
-                    className="text-xs px-2 py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition"
-                  >
-                    Cancel
-                  </button>
-                </>
-              ) : (
-                // Trash icon — shown on hover via group-hover
-                <button
-                  onClick={handleDelete}
-                  title="Delete comment"
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 p-0.5 rounded"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              )}
-            </div>
           )}
         </div>
 
@@ -427,7 +366,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
           }
         </p>
 
-        {/* Original text indicator when translated */}
+        {/* Show original text when translated */}
         {translated && !translating && (
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 italic">
             Original: {comment.content}
@@ -441,20 +380,26 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
           <button
             onClick={handleLike}
             className={`flex items-center gap-1 transition-colors ${
-              userLiked ? 'text-blue-600 font-semibold' : 'text-gray-500 hover:text-blue-600'
+              userLiked
+                ? 'text-blue-600 font-semibold'
+                : 'text-gray-500 hover:text-blue-600'
             }`}
           >
-            <span>👍</span><span>{likes}</span>
+            <span>👍</span>
+            <span>{likes}</span>
           </button>
 
           {/* Dislike */}
           <button
             onClick={handleDislike}
             className={`flex items-center gap-1 transition-colors ${
-              userDisliked ? 'text-red-600 font-semibold' : 'text-gray-500 hover:text-red-600'
+              userDisliked
+                ? 'text-red-600 font-semibold'
+                : 'text-gray-500 hover:text-red-600'
             }`}
           >
-            <span>👎</span><span>{dislikes}</span>
+            <span>👎</span>
+            <span>{dislikes}</span>
           </button>
 
           {/* Reply */}
@@ -465,29 +410,10 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
             Reply
           </button>
 
-          {/* Delete (own comments only) */}
-          {user && comment.userId._id === user._id && (
-            <button
-              onClick={async () => {
-                if (!confirm('Delete this comment?')) return;
-                try {
-                  await api.delete(`/comments/${comment._id}`);
-                  onDelete?.(comment._id);
-                } catch (error) {
-                  console.error('Failed to delete comment', error);
-                }
-              }}
-              className="text-red-400 hover:text-red-600 transition-colors"
-              title="Delete your comment"
-            >
-              🗑️
-            </button>
-          )}
-
           {/* Translate controls */}
           <div className="flex items-center gap-1.5 ml-auto" ref={dropdownRef}>
 
-            {/* Language picker */}
+            {/* Custom language dropdown */}
             <div className="relative">
               <button
                 type="button"
