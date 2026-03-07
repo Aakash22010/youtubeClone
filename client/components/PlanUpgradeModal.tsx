@@ -16,6 +16,11 @@ export default function PlanUpgradeModal({ currentPlan, onClose, onSuccess }: Pl
   const [selected, setSelected] = useState<Plan | null>(null);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
+  const PLAN_COLORS: Record<string, string> = {
+  bronze: '#b45309',
+  silver: '#64748b',
+  gold:   '#d97706',
+};
 
   const handleUpgrade = async (plan: Plan) => {
     setSelected(plan);
@@ -56,7 +61,7 @@ export default function PlanUpgradeModal({ currentPlan, onClose, onSuccess }: Pl
           onSuccess(verify.data.plan, verify.data.planExpiresAt);
           onClose();
         },
-        theme: { color: { bronze: '#b45309', silver: '#64748b', gold: '#d97706' }[plan] ?? '#2563eb' },
+        theme: { color: PLAN_COLORS[plan] ?? '#2563eb' },
       });
       rzp.on('payment.failed', (r: any) => setError(r.error.description));
       rzp.open();
