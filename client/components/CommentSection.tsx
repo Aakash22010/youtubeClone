@@ -72,10 +72,10 @@ interface CommentSectionProps {
 
 const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
   const { user } = useAuth();
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [comments, setComments]     = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
-  const [userCity, setUserCity] = useState<string>('');
+  const [userCity, setUserCity]     = useState<string>('');
   const [cityStatus, setCityStatus] = useState<'idle' | 'loading' | 'resolved' | 'failed'>('idle');
 
   // Fetch comments
@@ -146,9 +146,9 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
   };
 
   const cityLabel = (() => {
-    if (cityStatus === 'loading') return { text: 'Detecting your location…', color: 'text-gray-400' };
-    if (cityStatus === 'resolved') return { text: `📍 Posting from ${userCity}`, color: 'text-green-600 dark:text-green-400' };
-    if (cityStatus === 'failed') return { text: '📍 Location unavailable — allow browser access for accurate city', color: 'text-yellow-500' };
+    if (cityStatus === 'loading')  return { text: 'Detecting your location…',                                         color: 'text-gray-400' };
+    if (cityStatus === 'resolved') return { text: `📍 Posting from ${userCity}`,                                      color: 'text-green-600 dark:text-green-400' };
+    if (cityStatus === 'failed')   return { text: '📍 Location unavailable — allow browser access for accurate city', color: 'text-yellow-500' };
     return null;
   })();
 
@@ -235,22 +235,29 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
   const { user } = useAuth();
 
   // Like / dislike
-  const [likes, setLikes] = useState(comment.likes.length);
-  const [dislikes, setDislikes] = useState(comment.dislikes.length);
-  const [userLiked, setUserLiked] = useState(user ? comment.likes.includes(user._id) : false);
+  const [likes, setLikes]               = useState(comment.likes.length);
+  const [dislikes, setDislikes]         = useState(comment.dislikes.length);
+  const [userLiked, setUserLiked]       = useState(user ? comment.likes.includes(user._id) : false);
   const [userDisliked, setUserDisliked] = useState(user ? comment.dislikes.includes(user._id) : false);
 
   // Translation
-  const [translated, setTranslated] = useState<string | null>(null);
-  const [translating, setTranslating] = useState(false);
+  const [translated, setTranslated]     = useState<string | null>(null);
+  const [translating, setTranslating]   = useState(false);
   const [selectedLang, setSelectedLang] = useState('en');
-  const translationCache = useRef<Record<string, string>>({});
+  const translationCache                = useRef<Record<string, string>>({});
 
-  // Custom dropdown
+  // Delete
+  const [deleting, setDeleting]               = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Custom language dropdown
   const [langOpen, setLangOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownRef             = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
+  // True when the logged-in user owns this comment
+  const isOwner = user?._id === comment.userId._id;
+
+  // Close language dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -299,13 +306,21 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
     }
   };
 
-  const handleTranslate = async () => {
-    // Toggle off
-    if (translated) {
-      setTranslated(null);
-      return;
+  // ── User-initiated delete ─────────────────────────────────────────────────
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await api.delete(`/comments/${comment._id}`);
+      onDelete?.(comment._id); // removes from tree in parent state
+    } catch (error) {
+      console.error(error);
+      setDeleting(false);
+      setShowDeleteConfirm(false);
     }
-    // Serve from cache
+  };
+
+  const handleTranslate = async () => {
+    if (translated) { setTranslated(null); return; }
     if (translationCache.current[selectedLang]) {
       setTranslated(translationCache.current[selectedLang]);
       return;
@@ -317,17 +332,11 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
     setTranslating(false);
   };
 
-  // When lang changes while a translation is showing, auto-translate to the new lang
   const handleLangSelect = async (code: string) => {
     setSelectedLang(code);
     setLangOpen(false);
-
-    if (!translated) return; // not showing a translation — nothing to update
-
-    if (translationCache.current[code]) {
-      setTranslated(translationCache.current[code]);
-      return;
-    }
+    if (!translated) return;
+    if (translationCache.current[code]) { setTranslated(translationCache.current[code]); return; }
     setTranslating(true);
     const result = await translateText(comment.content, code);
     translationCache.current[code] = result;
@@ -338,7 +347,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
   const currentLang = languages.find(l => l.code === selectedLang);
 
   return (
-    <div className="flex space-x-3">
+    <div className="flex space-x-3 group">
       <img
         src={getAvatarUrl(comment.userId.photoURL, comment.userId.displayName)}
         alt={comment.userId.displayName}
@@ -346,15 +355,53 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
       />
       <div className="flex-1 min-w-0">
 
-        {/* Author + city */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="font-semibold text-sm">{comment.userId.displayName}</p>
-          {comment.city && comment.city !== 'Unknown' ? (
-            <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
-              📍 {comment.city}
-            </span>
-          ) : (
-            <span className="text-xs text-gray-400 dark:text-gray-600">📍 Location unavailable</span>
+        {/* Author + city + delete */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-semibold text-sm">{comment.userId.displayName}</p>
+            {comment.city && comment.city !== 'Unknown' ? (
+              <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
+                📍 {comment.city}
+              </span>
+            ) : (
+              <span className="text-xs text-gray-400 dark:text-gray-600">📍 Location unavailable</span>
+            )}
+          </div>
+
+          {/* Delete control — owner only */}
+          {isOwner && (
+            <div className="flex-shrink-0">
+              {showDeleteConfirm ? (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-gray-500 dark:text-gray-400">Delete?</span>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="text-red-500 hover:text-red-700 font-medium disabled:opacity-50 transition-colors"
+                  >
+                    {deleting ? 'Deleting…' : 'Yes'}
+                  </button>
+                  <span className="text-gray-300 dark:text-gray-600">·</span>
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                // Trash icon — fades in on row hover via `group-hover`
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  title="Delete comment"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 dark:hover:text-red-400 p-1 rounded"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -366,7 +413,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
           }
         </p>
 
-        {/* Show original text when translated */}
+        {/* Original text when translated */}
         {translated && !translating && (
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 italic">
             Original: {comment.content}
@@ -376,31 +423,24 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
         {/* Action bar */}
         <div className="flex items-center flex-wrap gap-3 mt-2 text-sm">
 
-          {/* Like */}
           <button
             onClick={handleLike}
-            className={`flex items-center gap-1 transition-colors ${userLiked
-                ? 'text-blue-600 font-semibold'
-                : 'text-gray-500 hover:text-blue-600'
-              }`}
+            className={`flex items-center gap-1 transition-colors ${
+              userLiked ? 'text-blue-600 font-semibold' : 'text-gray-500 hover:text-blue-600'
+            }`}
           >
-            <span>👍</span>
-            <span>{likes}</span>
+            <span>👍</span><span>{likes}</span>
           </button>
 
-          {/* Dislike */}
           <button
             onClick={handleDislike}
-            className={`flex items-center gap-1 transition-colors ${userDisliked
-                ? 'text-red-600 font-semibold'
-                : 'text-gray-500 hover:text-red-600'
-              }`}
+            className={`flex items-center gap-1 transition-colors ${
+              userDisliked ? 'text-red-600 font-semibold' : 'text-gray-500 hover:text-red-600'
+            }`}
           >
-            <span>👎</span>
-            <span>{dislikes}</span>
+            <span>👎</span><span>{dislikes}</span>
           </button>
 
-          {/* Reply */}
           <button
             onClick={() => setReplyingTo(comment)}
             className="text-blue-500 hover:text-blue-700 transition-colors"
@@ -410,8 +450,6 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
 
           {/* Translate controls */}
           <div className="flex items-center gap-1.5 ml-auto" ref={dropdownRef}>
-
-            {/* Custom language dropdown */}
             <div className="relative">
               <button
                 type="button"
@@ -428,24 +466,6 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
                 </svg>
               </button>
 
-              {user && comment.userId._id === user._id && (
-                <button
-                  onClick={async () => {
-                    if (!confirm('Delete this comment?')) return;
-                    try {
-                      await api.delete(`/comments/${comment._id}`);
-                      onDelete?.(comment._id);
-                    } catch (error) {
-                      console.error('Failed to delete comment', error);
-                    }
-                  }}
-                  className="text-red-500 hover:text-red-700 transition-colors text-sm"
-                  title="Delete your comment"
-                >
-                  🗑️
-                </button>
-              )}
-
               {langOpen && (
                 <div className="absolute bottom-full mb-1.5 left-0 z-50 w-36 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg overflow-hidden">
                   <div className="max-h-52 overflow-y-auto py-1">
@@ -454,10 +474,11 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
                         key={lang.code}
                         type="button"
                         onClick={() => handleLangSelect(lang.code)}
-                        className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center justify-between ${selectedLang === lang.code
+                        className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center justify-between ${
+                          selectedLang === lang.code
                             ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
                             : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                          }`}
+                        }`}
                       >
                         {lang.name}
                         {selectedLang === lang.code && (
@@ -472,16 +493,16 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
               )}
             </div>
 
-            {/* Translate / Original button */}
             <button
               onClick={handleTranslate}
               disabled={translating}
-              className={`text-xs px-3 py-1 rounded-full border font-medium transition-all duration-150 ${translating
+              className={`text-xs px-3 py-1 rounded-full border font-medium transition-all duration-150 ${
+                translating
                   ? 'text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed'
                   : translated
                     ? 'text-orange-500 border-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950'
                     : 'text-blue-500 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950'
-                }`}
+              }`}
             >
               {translating ? (
                 <span className="flex items-center gap-1">
@@ -493,7 +514,6 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
                 </span>
               ) : translated ? '↩ Original' : '⇄ Translate'}
             </button>
-
           </div>
         </div>
 
