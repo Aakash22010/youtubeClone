@@ -5,22 +5,43 @@ import { Plan, PLAN_CONFIGS, PlanOrderResponse, RazorpayVerifyPayload } from '..
 declare global { interface Window { Razorpay: any; } }
 
 interface PlanUpgradeModalProps {
-  currentPlan:    Plan;
-  onClose:        () => void;
-  onSuccess:      (plan: Plan, expiresAt: string) => void;
+  currentPlan: Plan;
+  onClose:     () => void;
+  onSuccess:   (plan: Plan, expiresAt: string) => void;
 }
 
 const UPGRADEABLE: Plan[] = ['bronze', 'silver', 'gold'];
+
+// All lookup maps typed as Record<string, string> so TypeScript
+// doesn't complain when Plan includes 'free'
+const PLAN_COLORS: Record<string, string> = {
+  bronze: '#b45309',
+  silver: '#64748b',
+  gold:   '#d97706',
+};
+
+const BORDER_COLORS: Record<string, string> = {
+  bronze: 'border-amber-500',
+  silver: 'border-slate-400',
+  gold:   'border-yellow-500',
+};
+
+const BADGE_BG: Record<string, string> = {
+  bronze: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  silver: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  gold:   'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+};
+
+const BTN_COLORS: Record<string, string> = {
+  gold:   'bg-yellow-500 hover:bg-yellow-600 text-white',
+  silver: 'bg-slate-500 hover:bg-slate-600 text-white',
+  bronze: 'bg-amber-600 hover:bg-amber-700 text-white',
+};
 
 export default function PlanUpgradeModal({ currentPlan, onClose, onSuccess }: PlanUpgradeModalProps) {
   const [selected, setSelected] = useState<Plan | null>(null);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
-  const PLAN_COLORS: Record<string, string> = {
-  bronze: '#b45309',
-  silver: '#64748b',
-  gold:   '#d97706',
-};
 
   const handleUpgrade = async (plan: Plan) => {
     setSelected(plan);
@@ -33,10 +54,10 @@ export default function PlanUpgradeModal({ currentPlan, onClose, onSuccess }: Pl
       // 2. Load Razorpay SDK
       if (!window.Razorpay) {
         await new Promise<void>((resolve, reject) => {
-          const s     = document.createElement('script');
-          s.src       = 'https://checkout.razorpay.com/v1/checkout.js';
-          s.onload    = () => resolve();
-          s.onerror   = () => reject(new Error('Razorpay SDK failed to load'));
+          const s   = document.createElement('script');
+          s.src     = 'https://checkout.razorpay.com/v1/checkout.js';
+          s.onload  = () => resolve();
+          s.onerror = () => reject(new Error('Razorpay SDK failed to load'));
           document.body.appendChild(s);
         });
       }
@@ -78,8 +99,10 @@ export default function PlanUpgradeModal({ currentPlan, onClose, onSuccess }: Pl
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl p-8 relative">
 
         {/* Close */}
-        <button onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl"
+        >
           ✕
         </button>
 
@@ -95,23 +118,13 @@ export default function PlanUpgradeModal({ currentPlan, onClose, onSuccess }: Pl
             const cfg        = PLAN_CONFIGS[plan];
             const isCurrent  = plan === currentPlan;
             const isSelected = selected === plan && loading;
-            const isLower    = ['free','bronze','silver','gold'].indexOf(plan) <=
-                               ['free','bronze','silver','gold'].indexOf(currentPlan);
-
-            const borderColor = {
-              bronze: 'border-amber-500',
-              silver: 'border-slate-400',
-              gold:   'border-yellow-500',
-            }[plan];
-
-            const badgeBg = {
-              bronze: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-              silver: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
-              gold:   'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-            }[plan];
+            const borderColor = BORDER_COLORS[plan] ?? 'border-gray-300';
+            const badgeBg     = BADGE_BG[plan]     ?? '';
+            const btnColor    = BTN_COLORS[plan]   ?? 'bg-blue-600 hover:bg-blue-700 text-white';
 
             return (
-              <div key={plan}
+              <div
+                key={plan}
                 className={`relative rounded-xl border-2 p-5 flex flex-col items-center gap-3 transition-all
                   ${isCurrent ? `${borderColor} opacity-60` : `${borderColor} hover:shadow-lg`}
                   ${plan === 'gold' ? 'ring-2 ring-yellow-400/30' : ''}
@@ -138,17 +151,13 @@ export default function PlanUpgradeModal({ currentPlan, onClose, onSuccess }: Pl
                 <button
                   onClick={() => handleUpgrade(plan)}
                   disabled={loading || isCurrent}
-                  className={`w-full py-2 rounded-lg text-sm font-semibold transition-all
+                  className={`w-full py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-60
                     ${isCurrent
                       ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
-                      : plan === 'gold'
-                        ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
-                        : plan === 'silver'
-                          ? 'bg-slate-500 hover:bg-slate-600 text-white'
-                          : 'bg-amber-600 hover:bg-amber-700 text-white'
-                    } disabled:opacity-60`}
+                      : btnColor
+                    }`}
                 >
-                  {isCurrent ? 'Current Plan'
+                  {isCurrent    ? 'Current Plan'
                     : isSelected ? 'Processing…'
                     : `Upgrade to ${cfg.name}`}
                 </button>
@@ -161,7 +170,7 @@ export default function PlanUpgradeModal({ currentPlan, onClose, onSuccess }: Pl
           <p className="text-red-500 text-sm text-center mb-4">{error}</p>
         )}
 
-        {/* Plan comparison table */}
+        {/* Comparison table */}
         <div className="border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden text-sm">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-800">
@@ -177,7 +186,7 @@ export default function PlanUpgradeModal({ currentPlan, onClose, onSuccess }: Pl
               {[
                 ['Watch time',  '5 min', '7 min', '10 min', 'Unlimited'],
                 ['Price/month', 'Free',  '₹10',   '₹50',    '₹100'],
-                ['Valid for',   '—',     '1 month','1 month','1 month'],
+                ['Valid for',   '—',     '1 month', '1 month', '1 month'],
               ].map(([label, ...vals]) => (
                 <tr key={label}>
                   <td className="px-3 py-2.5 font-medium text-gray-600 dark:text-gray-400">{label}</td>
