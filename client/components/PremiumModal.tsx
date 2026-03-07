@@ -42,8 +42,8 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSuccess }) => {
         description: 'Unlimited video downloads',
         order_id: data.orderId,
         prefill: {
-          contact: '',
-          email: '',
+          contact: '9999999999',
+          email: 'test@example.com',
         },
         handler: async (response: RazorpayVerifyPayload) => {
           // 4. Verify signature on backend
