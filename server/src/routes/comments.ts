@@ -14,6 +14,6 @@ router.get('/video/:videoId', getComments);
 router.post('/', authMiddleware, addComment);
 router.post('/:id/like', authMiddleware, likeComment);
 router.post('/:id/dislike', authMiddleware, dislikeComment);
-router.post('/:id/delete', authMiddleware, deleteComment);
+router.delete('/:id', authMiddleware, deleteComment);
 
 export default router;
