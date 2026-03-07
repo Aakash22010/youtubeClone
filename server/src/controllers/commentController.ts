@@ -112,3 +112,20 @@ export const dislikeComment = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: (error as Error).message });
   }
 };
+
+export const deleteComment = async (req: AuthRequest, res: Response) => {
+  try {
+    const comment = await Comment.findById(req.params.id);
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+
+    if (comment.userId.toString() !== req.user!._id.toString()) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    await Comment.deleteMany({ parentComment: comment._id });
+    await Comment.findByIdAndDelete(comment._id);
+    res.json({ message: 'Comment deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+};
