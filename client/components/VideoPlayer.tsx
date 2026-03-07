@@ -4,7 +4,7 @@ import {
   FaExpand, FaCompress, FaClosedCaptioning
 } from 'react-icons/fa';
 import { BsFillSkipStartFill, BsFillSkipEndFill } from 'react-icons/bs';
-import { Video, Plan, PLAN_WATCH_LIMITS, PLAN_CONFIGS } from '../types';
+import { Video, Plan, PLAN_CONFIGS, CUMULATIVE_PLAN_LIMITS, WatchTimeResponse } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import PlanUpgradeModal from './PlanUpgradeModal';
@@ -13,61 +13,59 @@ interface VideoPlayerProps {
   video: Video;
 }
 
-// Derive the user's effective plan — returns 'free' if plan has expired
-function getEffectivePlan(user: any): Plan {
-  if (!user) return 'free';
-  const plan: Plan = user.plan || 'free';
-  if (plan === 'free') return 'free';
-  if (user.planExpiresAt && new Date(user.planExpiresAt) < new Date()) return 'free';
-  return plan;
-}
+// How often (ms) to send a watch-time heartbeat to the backend while playing
+const HEARTBEAT_INTERVAL_MS = 5000; // every 5 seconds
+const HEARTBEAT_SECONDS     = 5;    // must match interval / 1000
 
-const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
-  const videoRef      = useRef<HTMLVideoElement>(null);
-  const containerRef  = useRef<HTMLDivElement>(null);
-  const controlsTimeout = useRef<NodeJS.Timeout | null>(null);
+export default function VideoPlayer({ video }: VideoPlayerProps) {
+  const videoRef     = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const controlsTimeout  = useRef<NodeJS.Timeout | null>(null);
+  const heartbeatInterval = useRef<NodeJS.Timeout | null>(null);
 
-  const [playing,       setPlaying]      = useState(false);
-  const [currentTime,   setCurrentTime]  = useState(0);
-  const [duration,      setDuration]     = useState(0);
-  const [volume,        setVolume]       = useState(1);
-  const [muted,         setMuted]        = useState(false);
-  const [playbackRate,  setPlaybackRate] = useState(1);
-  const [fullscreen,    setFullscreen]   = useState(false);
-  const [showControls,  setShowControls] = useState(true);
+  const [playing,      setPlaying]      = useState(false);
+  const [currentTime,  setCurrentTime]  = useState(0);
+  const [duration,     setDuration]     = useState(0);
+  const [volume,       setVolume]       = useState(1);
+  const [muted,        setMuted]        = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [fullscreen,   setFullscreen]   = useState(false);
+  const [showControls, setShowControls] = useState(true);
   const [hasRecordedView, setHasRecordedView] = useState(false);
 
-  // Plan / watch-limit state
-  const [showPlanModal,   setShowPlanModal]   = useState(false);
-  const [limitReached,    setLimitReached]    = useState(false);
-  const [userPlan,        setUserPlan]        = useState<Plan>('free');
-  const [planExpiresAt,   setPlanExpiresAt]   = useState<string | null>(null);
+  // ── Cumulative watch time state ───────────────────────────────────────────
+  const [totalWatchSeconds, setTotalWatchSeconds] = useState(0);
+  const [planLimit,         setPlanLimit]         = useState<number>(CUMULATIVE_PLAN_LIMITS['free']);
+  const [userPlan,          setUserPlan]          = useState<Plan>('free');
+  const [planExpiresAt,     setPlanExpiresAt]     = useState<string | null>(null);
+  const [limitReached,      setLimitReached]      = useState(false);
+  const [showPlanModal,     setShowPlanModal]     = useState(false);
 
   const { user } = useAuth();
 
-  // ── Derive watch limit ────────────────────────────────────────────────────
-  const effectivePlan = getEffectivePlan({ ...user, plan: userPlan, planExpiresAt });
-  const watchLimit    = PLAN_WATCH_LIMITS[effectivePlan]; // seconds
-
-  // ── Fetch current plan from backend on mount ──────────────────────────────
+  // ── Fetch initial watch-time state ────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
-    api.get('/plans/me')
+    api.get<WatchTimeResponse>('/watch-time/me')
       .then(({ data }) => {
-        setUserPlan(data.plan || 'free');
-        setPlanExpiresAt(data.planExpiresAt || null);
+        setTotalWatchSeconds(data.totalWatchSeconds);
+        setUserPlan(data.plan as Plan);
+        // Backend serialises Infinity as -1
+        setPlanLimit(data.planLimit === -1 ? Infinity : data.planLimit);
+        if (data.limitReached) {
+          setLimitReached(true);
+        }
       })
       .catch(console.error);
   }, [user]);
 
-  // ── Reset on video change ─────────────────────────────────────────────────
+  // ── Reset view flag on video change (keep cumulative total) ──────────────
   useEffect(() => {
     setHasRecordedView(false);
-    setLimitReached(false);
     setCurrentTime(0);
   }, [video._id]);
 
-  // ── Record view ───────────────────────────────────────────────────────────
+  // ── View recording ────────────────────────────────────────────────────────
   const recordView = useCallback(async () => {
     if (!user || hasRecordedView) return;
     try {
@@ -78,37 +76,53 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
     }
   }, [user, video._id, hasRecordedView]);
 
-  // ── Time update — enforces watch limit ───────────────────────────────────
+  // ── Heartbeat: send seconds to backend every 5s while playing ────────────
+  const sendHeartbeat = useCallback(async () => {
+    if (!user || limitReached) return;
+    try {
+      const { data } = await api.post<WatchTimeResponse>('/watch-time/increment', {
+        seconds: HEARTBEAT_SECONDS,
+      });
+      setTotalWatchSeconds(data.totalWatchSeconds);
+      setPlanLimit(data.planLimit === -1 ? Infinity : data.planLimit);
+
+      if (data.limitReached) {
+        videoRef.current?.pause();
+        setPlaying(false);
+        setLimitReached(true);
+        setShowPlanModal(true);
+        stopHeartbeat();
+      }
+    } catch (err) {
+      console.error('Watch-time heartbeat failed:', err);
+    }
+  }, [user, limitReached]);
+
+  const startHeartbeat = useCallback(() => {
+    if (heartbeatInterval.current) return; // already running
+    heartbeatInterval.current = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
+  }, [sendHeartbeat]);
+
+  const stopHeartbeat = useCallback(() => {
+    if (heartbeatInterval.current) {
+      clearInterval(heartbeatInterval.current);
+      heartbeatInterval.current = null;
+    }
+  }, []);
+
+  // Clean up on unmount
+  useEffect(() => () => stopHeartbeat(), [stopHeartbeat]);
+
+  // ── Time update ───────────────────────────────────────────────────────────
   const handleTimeUpdate = () => {
     const current = videoRef.current?.currentTime || 0;
     setCurrentTime(current);
-
     if (!hasRecordedView && current >= 30) recordView();
-
-    // Enforce plan limit
-    if (watchLimit !== Infinity && current >= watchLimit && !limitReached) {
-      videoRef.current?.pause();
-      setPlaying(false);
-      setLimitReached(true);
-      setShowPlanModal(true);
-    }
-  };
-
-  // Also block seeking past the limit
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTime = parseFloat(e.target.value);
-    const capped  = watchLimit !== Infinity ? Math.min(newTime, watchLimit) : newTime;
-    if (videoRef.current) videoRef.current.currentTime = capped;
-    setCurrentTime(capped);
-    if (watchLimit !== Infinity && capped >= watchLimit) {
-      videoRef.current?.pause();
-      setPlaying(false);
-      setLimitReached(true);
-      setShowPlanModal(true);
-    }
   };
 
   const handleEnded = () => {
+    stopHeartbeat();
+    setPlaying(false);
     if (!hasRecordedView) recordView();
   };
 
@@ -116,14 +130,32 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
     setDuration(videoRef.current?.duration || 0);
   };
 
-  // ── Playback controls ─────────────────────────────────────────────────────
+  // ── Play / Pause ──────────────────────────────────────────────────────────
   const togglePlay = () => {
     if (limitReached) { setShowPlanModal(true); return; }
-    if (playing) { videoRef.current?.pause(); }
-    else         { videoRef.current?.play(); }
-    setPlaying(!playing);
+    if (playing) {
+      videoRef.current?.pause();
+      stopHeartbeat();
+      setPlaying(false);
+    } else {
+      videoRef.current?.play();
+      startHeartbeat();
+      setPlaying(true);
+    }
   };
 
+  // Keep heartbeat in sync with native play/pause events (e.g. system media keys)
+  const handlePlay  = () => { startHeartbeat(); setPlaying(true); };
+  const handlePause = () => { stopHeartbeat();  setPlaying(false); };
+
+  // ── Seek ──────────────────────────────────────────────────────────────────
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTime = parseFloat(e.target.value);
+    if (videoRef.current) videoRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  // ── Volume ────────────────────────────────────────────────────────────────
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
     if (videoRef.current) videoRef.current.volume = val;
@@ -142,6 +174,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
     setPlaybackRate(rate);
   };
 
+  // ── Fullscreen ────────────────────────────────────────────────────────────
   const toggleFullscreen = () => {
     if (!fullscreen) { containerRef.current?.requestFullscreen(); }
     else             { document.exitFullscreen(); }
@@ -149,19 +182,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
   };
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
-  const handleKeyDown = (e: KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement) return;
     switch (e.key) {
       case ' ': case 'Space': e.preventDefault(); togglePlay(); break;
-      case 'ArrowRight':
-        if (videoRef.current) {
-          const next = Math.min(videoRef.current.currentTime + 10, watchLimit !== Infinity ? watchLimit : Infinity);
-          videoRef.current.currentTime = next;
-        }
-        break;
-      case 'ArrowLeft':
-        if (videoRef.current) videoRef.current.currentTime -= 10;
-        break;
+      case 'ArrowRight': if (videoRef.current) videoRef.current.currentTime += 10; break;
+      case 'ArrowLeft':  if (videoRef.current) videoRef.current.currentTime -= 10; break;
       case 'ArrowUp':
         e.preventDefault();
         if (videoRef.current) {
@@ -179,12 +205,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
       case 'f': case 'F': toggleFullscreen(); break;
       case 'm': case 'M': toggleMute();       break;
     }
-  };
+  }, [playing, fullscreen, limitReached]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [playing, fullscreen, limitReached]);
+  }, [handleKeyDown]);
 
   // ── Auto-hide controls ────────────────────────────────────────────────────
   useEffect(() => {
@@ -204,6 +230,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
     };
   }, []);
 
+  // ── Helpers ───────────────────────────────────────────────────────────────
   const formatTime = (time: number) => {
     const t    = isFinite(time) ? time : 0;
     const mins = Math.floor(t / 60);
@@ -211,18 +238,28 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // ── Progress bar max — capped at watch limit for non-gold users ───────────
-  const progressMax = watchLimit !== Infinity ? Math.min(duration, watchLimit) : duration;
+  const remainingSeconds = planLimit !== Infinity ? Math.max(0, planLimit - totalWatchSeconds) : Infinity;
+  const progressPct      = planLimit !== Infinity ? Math.min((totalWatchSeconds / planLimit) * 100, 100) : 0;
 
   // ── Plan upgrade success ──────────────────────────────────────────────────
-  const handlePlanSuccess = (plan: Plan, expiresAt: string) => {
+  const handlePlanSuccess = async (plan: Plan, expiresAt: string) => {
     setUserPlan(plan);
     setPlanExpiresAt(expiresAt);
+    // Reset cumulative counter so the new plan starts fresh
+    try {
+      await api.post('/watch-time/reset');
+      setTotalWatchSeconds(0);
+    } catch (err) {
+      console.error(err);
+    }
+    const newLimit = CUMULATIVE_PLAN_LIMITS[plan];
+    setPlanLimit(newLimit);
     setLimitReached(false);
-    // Resume playback
+    // Resume
     setTimeout(() => {
       videoRef.current?.play();
       setPlaying(true);
+      startHeartbeat();
     }, 300);
   };
 
@@ -241,27 +278,51 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
           onEnded={handleEnded}
+          onPlay={handlePlay}
+          onPause={handlePause}
           className="w-full h-full"
         />
 
+        {/* ── Cumulative progress bar (top of player) ───────────────────── */}
+        {user && planLimit !== Infinity && !limitReached && (
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-white/10 z-10">
+            <div
+              className="h-full bg-yellow-400 transition-all duration-1000"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+        )}
+
+        {/* ── Plan badge (top-left) ─────────────────────────────────────── */}
+        {user && userPlan !== 'free' && (
+          <div className="absolute top-3 left-3 z-10">
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-black/60 text-white">
+              {PLAN_CONFIGS[userPlan].badge} {PLAN_CONFIGS[userPlan].name}
+            </span>
+          </div>
+        )}
+
         {/* ── Watch limit overlay ────────────────────────────────────────── */}
         {limitReached && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm z-10">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm z-20">
             <div className="text-center px-6 max-w-sm">
               <div className="text-5xl mb-3">⏱️</div>
               <h3 className="text-white text-xl font-bold mb-2">Watch Limit Reached</h3>
               <p className="text-gray-300 text-sm mb-1">
-                Your <span className="font-semibold capitalize text-white">{effectivePlan}</span> plan allows{' '}
+                You've used all{' '}
                 <span className="font-semibold text-white">
-                  {PLAN_CONFIGS[effectivePlan].watchMinutes} minutes
+                  {PLAN_CONFIGS[userPlan].watchMinutes} minutes
                 </span>{' '}
-                of watch time.
+                of cumulative watch time on your{' '}
+                <span className="font-semibold capitalize text-white">{userPlan}</span> plan.
               </p>
-              <p className="text-gray-400 text-xs mb-5">Upgrade to keep watching this video.</p>
+              <p className="text-gray-400 text-xs mb-5">
+                This counts across all videos you've watched.
+              </p>
 
               {/* Quick plan pills */}
               <div className="flex justify-center gap-2 flex-wrap mb-4">
-                {(['bronze','silver','gold'] as Plan[]).map(p => {
+                {(['bronze', 'silver', 'gold'] as Plan[]).map(p => {
                   const c = PLAN_CONFIGS[p];
                   return (
                     <span key={p} className="text-xs bg-white/10 text-white border border-white/20 px-2.5 py-1 rounded-full">
@@ -281,37 +342,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
           </div>
         )}
 
-        {/* ── Plan badge (top-left) ─────────────────────────────────────── */}
-        {user && effectivePlan !== 'free' && (
-          <div className="absolute top-3 left-3 z-10">
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full bg-black/60 text-white`}>
-              {PLAN_CONFIGS[effectivePlan].badge} {PLAN_CONFIGS[effectivePlan].name}
-            </span>
-          </div>
-        )}
-
-        {/* ── Watch limit warning bar (top) ─────────────────────────────── */}
-        {user && watchLimit !== Infinity && !limitReached && currentTime > 0 && (
-          <div className="absolute top-0 left-0 right-0 z-10 h-0.5 bg-white/10">
-            <div
-              className="h-full bg-yellow-400 transition-all"
-              style={{ width: `${Math.min((currentTime / watchLimit) * 100, 100)}%` }}
-            />
-          </div>
-        )}
-
         {/* ── Controls ──────────────────────────────────────────────────── */}
         <div
           className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/50 to-transparent px-4 pb-2 pt-8 transition-opacity ${
             showControls && !limitReached ? 'opacity-100' : 'opacity-0'
           }`}
         >
-          {/* Progress bar */}
           <input
             type="range"
             min="0"
-            max={progressMax}
-            value={Math.min(currentTime, progressMax)}
+            max={duration}
+            value={currentTime}
             onChange={handleSeek}
             className="w-full h-1 bg-gray-600 rounded-full appearance-none cursor-pointer
               [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3
@@ -329,12 +370,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
               <button onClick={() => { if (videoRef.current) videoRef.current.currentTime -= 10; }} className="hover:text-gray-300">
                 <BsFillSkipStartFill size={22} className="rotate-180" />
               </button>
-              <button onClick={() => {
-                if (videoRef.current) {
-                  const next = Math.min(videoRef.current.currentTime + 10, watchLimit !== Infinity ? watchLimit : Infinity);
-                  videoRef.current.currentTime = next;
-                }
-              }} className="hover:text-gray-300">
+              <button onClick={() => { if (videoRef.current) videoRef.current.currentTime += 10; }} className="hover:text-gray-300">
                 <BsFillSkipEndFill size={22} />
               </button>
               <div className="flex items-center space-x-2">
@@ -349,12 +385,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
                 />
               </div>
               <span className="text-sm">
-                {formatTime(currentTime)} / {formatTime(watchLimit !== Infinity ? Math.min(duration, watchLimit) : duration)}
+                {formatTime(currentTime)} / {formatTime(duration)}
               </span>
-              {/* Remaining time warning */}
-              {watchLimit !== Infinity && !limitReached && (
-                <span className="text-xs text-yellow-400">
-                  {Math.max(0, Math.ceil((watchLimit - currentTime) / 60))} min left
+
+              {/* Remaining cumulative time warning */}
+              {user && planLimit !== Infinity && !limitReached && (
+                <span className={`text-xs font-medium ${remainingSeconds < 60 ? 'text-red-400' : 'text-yellow-400'}`}>
+                  {remainingSeconds < 60
+                    ? `${Math.ceil(remainingSeconds)}s total left`
+                    : `${Math.ceil(remainingSeconds / 60)}m total left`
+                  }
                 </span>
               )}
             </div>
@@ -380,16 +420,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
         </div>
       </div>
 
-      {/* Plan upgrade modal */}
       {showPlanModal && (
         <PlanUpgradeModal
-          currentPlan={effectivePlan}
+          currentPlan={userPlan}
           onClose={() => setShowPlanModal(false)}
           onSuccess={handlePlanSuccess}
         />
       )}
     </>
   );
-};
-
-export default VideoPlayer;
+}

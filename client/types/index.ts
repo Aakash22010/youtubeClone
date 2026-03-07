@@ -17,12 +17,14 @@ export const PLAN_CONFIGS: Record<Plan, PlanConfig> = {
   gold:   { name: 'Gold',   price: 100, watchMinutes: Infinity, color: 'text-yellow-500', badge: '🥇' },
 };
 
-// Watch limit in seconds — used directly by VideoPlayer
-export const PLAN_WATCH_LIMITS: Record<Plan, number> = {
-  free:   5  * 60,
-  bronze: 7  * 60,
-  silver: 10 * 60,
-  gold:   Infinity,
+// ── CUMULATIVE watch limit in seconds per plan ─────────────────────────────────
+// This is the TOTAL across ALL videos ever watched — NOT per-video.
+// Once the user's totalWatchSeconds reaches this threshold, playback is paused.
+export const CUMULATIVE_PLAN_LIMITS: Record<Plan, number> = {
+  free:   5  * 60,    // 300 s
+  bronze: 7  * 60,    // 420 s
+  silver: 10 * 60,    // 600 s
+  gold:   Infinity,   // unlimited
 };
 
 // ─── User ─────────────────────────────────────────────────────────────────────
@@ -49,6 +51,7 @@ export interface User {
   plan: Plan;
   planExpiresAt: string | null;
   planPaymentId: string | null;
+  totalWatchSeconds: number;   // cumulative across ALL videos
   createdAt: string;
   updatedAt: string;
 }
@@ -103,7 +106,7 @@ export interface Playlist {
 // ─── Download ─────────────────────────────────────────────────────────────────
 
 export interface DownloadEntry {
-  videoId: Video;     // populated by backend
+  videoId: Video;
   downloadedAt: string;
 }
 
@@ -146,4 +149,13 @@ export interface RazorpayVerifyPayload {
 
 export interface PlanOrderResponse extends RazorpayOrderResponse {
   plan: Plan;
+}
+
+// ─── Watch time ───────────────────────────────────────────────────────────────
+
+export interface WatchTimeResponse {
+  totalWatchSeconds: number;
+  limitReached:      boolean;
+  plan:              Plan;
+  planLimit:         number;   // Infinity serialised as -1 from backend
 }

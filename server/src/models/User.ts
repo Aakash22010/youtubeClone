@@ -26,6 +26,7 @@ export interface IUser extends Document {
   plan: 'free' | 'bronze' | 'silver' | 'gold';
   planExpiresAt: Date | null;
   planPaymentId: string | null;
+  totalWatchSeconds: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -65,6 +66,7 @@ const userSchema = new Schema<IUser>(
       enum:    ['free', 'bronze', 'silver', 'gold'],
       default: 'free',
     },
+    totalWatchSeconds: { type: Number, default: 0 },
     planExpiresAt:  { type: Date,   default: null },
     planPaymentId:  { type: String, default: null },
   },

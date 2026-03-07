@@ -30,6 +30,7 @@ import playlistRoutes     from './routes/playlists';
 import downloadRoutes     from './routes/downloads';
 import planRoutes         from './routes/plans';          
 import { paymentsRouter } from './routes/payments';
+import watchTimeRoutes    from './routes/watchTime'; 
 
 app.use('/api/auth',          authRoutes);
 app.use('/api/videos',        videoRoutes);
@@ -43,6 +44,7 @@ app.use('/api/playlists',     playlistRoutes);
 app.use('/api/downloads',     downloadRoutes);
 app.use('/api/plans',         planRoutes);                
 app.use('/api/payments',      paymentsRouter);
+app.use('/api/watch-time',    watchTimeRoutes);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
