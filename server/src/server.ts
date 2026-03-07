@@ -5,7 +5,6 @@ import express from 'express';
 import cors from 'cors';
 import connectDB from './utils/db';
 
-
 const app = express();
 
 // Connect to MongoDB
@@ -19,30 +18,31 @@ app.use(cors({
 app.use(express.json());
 
 // Routes
-import authRoutes from './routes/auth';
-import videoRoutes from './routes/videos';
-import commentRoutes from './routes/comments';
-import uploadRoutes from './routes/upload';
-import userRoutes from './routes/users';
+import authRoutes         from './routes/auth';
+import videoRoutes        from './routes/videos';
+import commentRoutes      from './routes/comments';
+import uploadRoutes       from './routes/upload';
+import userRoutes         from './routes/users';
 import subscriptionRoutes from './routes/subscriptions';
-import historyRoutes from './routes/history';
-import searchRoutes from './routes/search';
-import playlistRoutes from './routes/playlists';
-import downloadRoutes from './routes/downloads';
+import historyRoutes      from './routes/history';
+import searchRoutes       from './routes/search';
+import playlistRoutes     from './routes/playlists';
+import downloadRoutes     from './routes/downloads';
+import planRoutes         from './routes/plans';          
 import { paymentsRouter } from './routes/payments';
 
-app.use('/api/auth', authRoutes);
-app.use('/api/videos', videoRoutes);
-app.use('/api/comments', commentRoutes);
-app.use('/api/upload', uploadRoutes);
+app.use('/api/auth',          authRoutes);
+app.use('/api/videos',        videoRoutes);
+app.use('/api/comments',      commentRoutes);
+app.use('/api/upload',        uploadRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/history', historyRoutes);
-app.use('/api/search', searchRoutes);
-app.use('/api/playlists', playlistRoutes);
-app.use('/api/downloads', downloadRoutes);
-app.use('/api/payments', paymentsRouter);
-// ... other routes
+app.use('/api/users',         userRoutes);
+app.use('/api/history',       historyRoutes);
+app.use('/api/search',        searchRoutes);
+app.use('/api/playlists',     playlistRoutes);
+app.use('/api/downloads',     downloadRoutes);
+app.use('/api/plans',         planRoutes);                
+app.use('/api/payments',      paymentsRouter);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

@@ -1,3 +1,32 @@
+// ─── Plans ────────────────────────────────────────────────────────────────────
+
+export type Plan = 'free' | 'bronze' | 'silver' | 'gold';
+
+export interface PlanConfig {
+  name:         string;
+  price:        number;   // INR
+  watchMinutes: number;   // Infinity for gold
+  color:        string;   // tailwind text color class
+  badge:        string;   // emoji
+}
+
+export const PLAN_CONFIGS: Record<Plan, PlanConfig> = {
+  free:   { name: 'Free',   price: 0,   watchMinutes: 5,        color: 'text-gray-500',   badge: '' },
+  bronze: { name: 'Bronze', price: 10,  watchMinutes: 7,        color: 'text-amber-600',  badge: '🥉' },
+  silver: { name: 'Silver', price: 50,  watchMinutes: 10,       color: 'text-slate-400',  badge: '🥈' },
+  gold:   { name: 'Gold',   price: 100, watchMinutes: Infinity, color: 'text-yellow-500', badge: '🥇' },
+};
+
+// Watch limit in seconds — used directly by VideoPlayer
+export const PLAN_WATCH_LIMITS: Record<Plan, number> = {
+  free:   5  * 60,
+  bronze: 7  * 60,
+  silver: 10 * 60,
+  gold:   Infinity,
+};
+
+// ─── User ─────────────────────────────────────────────────────────────────────
+
 export interface User {
   _id: string;
   firebaseUid: string;
@@ -8,7 +37,7 @@ export interface User {
   description?: string;
   subscribers: string[];
   subscribedTo: string[];
-  // ── Premium ────────────────────────────────────────────────────────────────
+  // ── Premium (download feature) ─────────────────────────────────────────────
   isPremium: boolean;
   premiumSince?: string | null;
   razorpayPaymentId?: string | null;
@@ -16,9 +45,15 @@ export interface User {
   downloads: DownloadEntry[];
   lastDownloadDate?: string | null;
   dailyDownloadCount: number;
+  // ── Plan (watch time feature) ──────────────────────────────────────────────
+  plan: Plan;
+  planExpiresAt: string | null;
+  planPaymentId: string | null;
   createdAt: string;
   updatedAt: string;
 }
+
+// ─── Video ────────────────────────────────────────────────────────────────────
 
 export interface Video {
   _id: string;
@@ -36,6 +71,8 @@ export interface Video {
   updatedAt: string;
 }
 
+// ─── Comment ──────────────────────────────────────────────────────────────────
+
 export interface Comment {
   _id: string;
   content: string;
@@ -50,6 +87,8 @@ export interface Comment {
   replies?: Comment[];
 }
 
+// ─── Playlist ─────────────────────────────────────────────────────────────────
+
 export interface Playlist {
   _id: string;
   name: string;
@@ -61,10 +100,10 @@ export interface Playlist {
   updatedAt: string;
 }
 
-// ── Download ──────────────────────────────────────────────────────────────────
+// ─── Download ─────────────────────────────────────────────────────────────────
 
 export interface DownloadEntry {
-  videoId: Video;          // populated by backend
+  videoId: Video;     // populated by backend
   downloadedAt: string;
 }
 
@@ -74,7 +113,7 @@ export interface DlMeta {
   dailyLimit: number;
 }
 
-// ── Profile ───────────────────────────────────────────────────────────────────
+// ─── Profile ──────────────────────────────────────────────────────────────────
 
 export interface UserProfile {
   _id: string;
@@ -83,10 +122,12 @@ export interface UserProfile {
   banner: string;
   description: string;
   isPremium: boolean;
+  plan: Plan;
+  planExpiresAt: string | null;
   subscribers: Pick<User, '_id' | 'displayName' | 'photoURL'>[];
 }
 
-// ── Payment ───────────────────────────────────────────────────────────────────
+// ─── Payment ──────────────────────────────────────────────────────────────────
 
 export interface RazorpayOrderResponse {
   orderId: string;
@@ -99,4 +140,10 @@ export interface RazorpayVerifyPayload {
   razorpay_order_id: string;
   razorpay_payment_id: string;
   razorpay_signature: string;
+}
+
+// ─── Plan payment ─────────────────────────────────────────────────────────────
+
+export interface PlanOrderResponse extends RazorpayOrderResponse {
+  plan: Plan;
 }
