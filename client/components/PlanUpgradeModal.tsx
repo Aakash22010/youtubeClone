@@ -69,7 +69,7 @@ export default function PlanUpgradeModal({ currentPlan, onClose, onSuccess }: Pl
         amount: data.amount,
         currency: data.currency,
         name: 'YouTubeClone',
-        description: `${cfg.badge} ${cfg.name} Plan — ₹${cfg.price}/month`,
+        description: `${cfg.name} Plan - Rs.${cfg.price}/month`,
         order_id: data.orderId,
         prefill: {
           contact: '9999999999',
