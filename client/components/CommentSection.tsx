@@ -72,10 +72,10 @@ interface CommentSectionProps {
 
 const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
   const { user } = useAuth();
-  const [comments, setComments]     = useState<Comment[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
-  const [userCity, setUserCity]     = useState<string>('');
+  const [userCity, setUserCity] = useState<string>('');
   const [cityStatus, setCityStatus] = useState<'idle' | 'loading' | 'resolved' | 'failed'>('idle');
 
   // Fetch comments
@@ -146,9 +146,9 @@ const CommentSection: React.FC<CommentSectionProps> = ({ videoId }) => {
   };
 
   const cityLabel = (() => {
-    if (cityStatus === 'loading')  return { text: 'Detecting your location…',                                         color: 'text-gray-400' };
-    if (cityStatus === 'resolved') return { text: `📍 Posting from ${userCity}`,                                      color: 'text-green-600 dark:text-green-400' };
-    if (cityStatus === 'failed')   return { text: '📍 Location unavailable — allow browser access for accurate city', color: 'text-yellow-500' };
+    if (cityStatus === 'loading') return { text: 'Detecting your location…', color: 'text-gray-400' };
+    if (cityStatus === 'resolved') return { text: `📍 Posting from ${userCity}`, color: 'text-green-600 dark:text-green-400' };
+    if (cityStatus === 'failed') return { text: '📍 Location unavailable — allow browser access for accurate city', color: 'text-yellow-500' };
     return null;
   })();
 
@@ -235,20 +235,20 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
   const { user } = useAuth();
 
   // Like / dislike
-  const [likes, setLikes]               = useState(comment.likes.length);
-  const [dislikes, setDislikes]         = useState(comment.dislikes.length);
-  const [userLiked, setUserLiked]       = useState(user ? comment.likes.includes(user._id) : false);
+  const [likes, setLikes] = useState(comment.likes.length);
+  const [dislikes, setDislikes] = useState(comment.dislikes.length);
+  const [userLiked, setUserLiked] = useState(user ? comment.likes.includes(user._id) : false);
   const [userDisliked, setUserDisliked] = useState(user ? comment.dislikes.includes(user._id) : false);
 
   // Translation
-  const [translated, setTranslated]     = useState<string | null>(null);
-  const [translating, setTranslating]   = useState(false);
+  const [translated, setTranslated] = useState<string | null>(null);
+  const [translating, setTranslating] = useState(false);
   const [selectedLang, setSelectedLang] = useState('en');
-  const translationCache                = useRef<Record<string, string>>({});
+  const translationCache = useRef<Record<string, string>>({});
 
   // Custom dropdown
   const [langOpen, setLangOpen] = useState(false);
-  const dropdownRef             = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -379,11 +379,10 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
           {/* Like */}
           <button
             onClick={handleLike}
-            className={`flex items-center gap-1 transition-colors ${
-              userLiked
+            className={`flex items-center gap-1 transition-colors ${userLiked
                 ? 'text-blue-600 font-semibold'
                 : 'text-gray-500 hover:text-blue-600'
-            }`}
+              }`}
           >
             <span>👍</span>
             <span>{likes}</span>
@@ -392,11 +391,10 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
           {/* Dislike */}
           <button
             onClick={handleDislike}
-            className={`flex items-center gap-1 transition-colors ${
-              userDisliked
+            className={`flex items-center gap-1 transition-colors ${userDisliked
                 ? 'text-red-600 font-semibold'
                 : 'text-gray-500 hover:text-red-600'
-            }`}
+              }`}
           >
             <span>👎</span>
             <span>{dislikes}</span>
@@ -438,11 +436,10 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
                         key={lang.code}
                         type="button"
                         onClick={() => handleLangSelect(lang.code)}
-                        className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center justify-between ${
-                          selectedLang === lang.code
+                        className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center justify-between ${selectedLang === lang.code
                             ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
                             : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                        }`}
+                          }`}
                       >
                         {lang.name}
                         {selectedLang === lang.code && (
@@ -457,17 +454,34 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
               )}
             </div>
 
+            {user && comment.userId._id === user._id && (
+              <button
+                onClick={async () => {
+                  if (!confirm('Delete this comment?')) return;
+                  try {
+                    await api.delete(`/comments/${comment._id}`);
+                    onDelete?.(comment._id);
+                  } catch (error) {
+                    console.error('Failed to delete comment', error);
+                  }
+                }}
+                className="text-red-500 hover:text-red-700 transition-colors text-sm"
+                title="Delete your comment"
+              >
+                🗑️
+              </button>
+            )}
+
             {/* Translate / Original button */}
             <button
               onClick={handleTranslate}
               disabled={translating}
-              className={`text-xs px-3 py-1 rounded-full border font-medium transition-all duration-150 ${
-                translating
+              className={`text-xs px-3 py-1 rounded-full border font-medium transition-all duration-150 ${translating
                   ? 'text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed'
                   : translated
                     ? 'text-orange-500 border-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950'
                     : 'text-blue-500 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950'
-              }`}
+                }`}
             >
               {translating ? (
                 <span className="flex items-center gap-1">
