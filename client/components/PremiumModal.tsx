@@ -42,7 +42,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSuccess }) => {
         description: 'Unlimited video downloads',
         order_id: data.orderId,
         prefill: {
-          contact: '9999999999',
+          contact: '',
           email: '',
         },
         handler: async (response: RazorpayVerifyPayload) => {

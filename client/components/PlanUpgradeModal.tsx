@@ -72,7 +72,7 @@ export default function PlanUpgradeModal({ currentPlan, onClose, onSuccess }: Pl
         description: `${cfg.badge} ${cfg.name} Plan — ₹${cfg.price}/month`,
         order_id: data.orderId,
         prefill: {
-          contact: '9999999999',
+          contact: '',
           email: '',
         },
         handler: async (response: RazorpayVerifyPayload) => {
