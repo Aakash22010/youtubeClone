@@ -28,8 +28,8 @@ import subscriptionRoutes from './routes/subscriptions';
 import historyRoutes from './routes/history';
 import searchRoutes from './routes/search';
 import playlistRoutes from './routes/playlists';
-import downloadRoutes          from './routes/downloads';
-import { paymentsRouter }      from './routes/payments';
+import downloadRoutes from './routes/downloads';
+import { paymentsRouter } from './routes/payments';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/videos', videoRoutes);
