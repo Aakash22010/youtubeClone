@@ -32,7 +32,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
     <>
       <header className="sticky top-0 z-40 bg-white dark:bg-[#0f0f0f] border-b border-gray-200 dark:border-[#272727] px-4 py-2 flex items-center justify-between">
         <div className="flex items-center space-x-2 md:space-x-4">
-          {/* Hamburger menu for mobile */}
           {isMobile && (
             <button
               onClick={toggleSidebar}
@@ -46,7 +45,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
           </Link>
         </div>
 
-        {/* Search bar - hidden on mobile when not expanded */}
+        {/* Search bar */}
         {(!isMobile || showMobileSearch) && (
           <form onSubmit={handleSearch} className="flex-1 max-w-2xl mx-4">
             <div className="flex">
@@ -88,10 +87,15 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
               >
                 <FiUpload size={22} className="text-gray-700 dark:text-gray-300" />
               </button>
-              <button className="p-2 hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full transition-colors" title="Notifications">
+              <button
+                className="p-2 hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full transition-colors"
+                title="Notifications"
+              >
                 <FiBell size={22} className="text-gray-700 dark:text-gray-300" />
               </button>
+
               <div className="relative">
+                {/* ── Avatar — clicks open dropdown, long-press / direct nav via menu ── */}
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   className="flex items-center space-x-2 focus:outline-none"
@@ -99,32 +103,68 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                   <img
                     src={getAvatarUrl(user.photoURL, user.displayName)}
                     alt={user.displayName}
-                    className="w-7 h-7 md:w-8 md:h-8 rounded-full ring-2 ring-transparent hover:ring-gray-300 dark:hover:ring-[#3f3f3f] transition-all"
+                    className="w-7 h-7 md:w-8 md:h-8 rounded-full ring-2 ring-transparent hover:ring-gray-300 dark:hover:ring-[#3f3f3f] transition-all object-cover"
                   />
                 </button>
+
                 {showUserMenu && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-[#272727] border border-gray-200 dark:border-[#3f3f3f] rounded-lg shadow-lg py-1 z-50">
+                  <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-[#272727] border border-gray-200 dark:border-[#3f3f3f] rounded-lg shadow-lg py-1 z-50">
+
+                    {/* Profile header inside dropdown */}
+                    <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-100 dark:border-[#3f3f3f] mb-1">
+                      <img
+                        src={getAvatarUrl(user.photoURL, user.displayName)}
+                        alt={user.displayName}
+                        className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                          {user.displayName}
+                        </p>
+                        {/* Premium badge */}
+                        {(user as any).isPremium && (
+                          <span className="text-xs text-yellow-600 dark:text-yellow-400 font-medium">
+                            ⭐ Premium
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* ── Profile page link (new) ── */}
+                    <Link
+                      href={`/profile/${user._id}`}
+                      onClick={() => setShowUserMenu(false)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#3f3f3f] transition-colors"
+                    >
+                      <FiUser size={15} />
+                      Your Profile
+                    </Link>
+
                     <Link
                       href={`/channel/${user._id}`}
+                      onClick={() => setShowUserMenu(false)}
                       className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#3f3f3f] transition-colors"
                     >
                       Your Channel
                     </Link>
                     <Link
                       href="/settings"
+                      onClick={() => setShowUserMenu(false)}
                       className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#3f3f3f] transition-colors"
                     >
                       Channel Settings
                     </Link>
                     <Link
                       href="/playlists"
+                      onClick={() => setShowUserMenu(false)}
                       className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#3f3f3f] transition-colors"
                     >
                       Playlists
                     </Link>
+
                     <hr className="my-1 border-gray-200 dark:border-[#3f3f3f]" />
                     <button
-                      onClick={logout}
+                      onClick={() => { logout(); setShowUserMenu(false); }}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#3f3f3f] transition-colors"
                     >
                       Sign Out

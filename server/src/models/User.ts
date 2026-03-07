@@ -1,5 +1,10 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export interface IDownloadEntry {
+  videoId: mongoose.Types.ObjectId;
+  downloadedAt: Date;
+}
+
 export interface IUser extends Document {
   firebaseUid: string;
   email: string;
@@ -9,19 +14,46 @@ export interface IUser extends Document {
   description: string;
   subscribers: mongoose.Types.ObjectId[];
   subscribedTo: mongoose.Types.ObjectId[];
+  // ── Premium ──────────────────────────────────────────────────────────────
+  isPremium: boolean;
+  premiumSince: Date | null;
+  razorpayPaymentId: string | null;
+  // ── Downloads ────────────────────────────────────────────────────────────
+  downloads: IDownloadEntry[];
+  lastDownloadDate: Date | null;   // tracks the calendar day of last download
+  dailyDownloadCount: number;      // resets to 0 each new calendar day
   createdAt: Date;
   updatedAt: Date;
 }
 
-const userSchema = new Schema<IUser>({
-  firebaseUid: { type: String, required: true, unique: true },
-  email: { type: String, required: true },
-  displayName: String,
-  photoURL: String,
-  banner: String,
-  description: String,
-  subscribers: [{ type: Schema.Types.ObjectId, ref: 'User' }],
-  subscribedTo: [{ type: Schema.Types.ObjectId, ref: 'User' }],
-}, { timestamps: true });
+const downloadEntrySchema = new Schema<IDownloadEntry>(
+  {
+    videoId: { type: Schema.Types.ObjectId, ref: 'Video', required: true },
+    downloadedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const userSchema = new Schema<IUser>(
+  {
+    firebaseUid:        { type: String, required: true, unique: true },
+    email:              { type: String, required: true },
+    displayName:        String,
+    photoURL:           String,
+    banner:             String,
+    description:        String,
+    subscribers:        [{ type: Schema.Types.ObjectId, ref: 'User' }],
+    subscribedTo:       [{ type: Schema.Types.ObjectId, ref: 'User' }],
+    // Premium
+    isPremium:          { type: Boolean, default: false },
+    premiumSince:       { type: Date, default: null },
+    razorpayPaymentId:  { type: String, default: null },
+    // Downloads
+    downloads:          { type: [downloadEntrySchema], default: [] },
+    lastDownloadDate:   { type: Date, default: null },
+    dailyDownloadCount: { type: Number, default: 0 },
+  },
+  { timestamps: true }
+);
 
 export default mongoose.model<IUser>('User', userSchema);
