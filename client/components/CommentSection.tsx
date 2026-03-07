@@ -428,6 +428,24 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
                 </svg>
               </button>
 
+              {user && comment.userId._id === user._id && (
+                <button
+                  onClick={async () => {
+                    if (!confirm('Delete this comment?')) return;
+                    try {
+                      await api.delete(`/comments/${comment._id}`);
+                      onDelete?.(comment._id);
+                    } catch (error) {
+                      console.error('Failed to delete comment', error);
+                    }
+                  }}
+                  className="text-red-500 hover:text-red-700 transition-colors text-sm"
+                  title="Delete your comment"
+                >
+                  🗑️
+                </button>
+              )}
+
               {langOpen && (
                 <div className="absolute bottom-full mb-1.5 left-0 z-50 w-36 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg overflow-hidden">
                   <div className="max-h-52 overflow-y-auto py-1">
@@ -453,24 +471,6 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, setReplyingTo, onDel
                 </div>
               )}
             </div>
-
-            {user && comment.userId._id === user._id && (
-              <button
-                onClick={async () => {
-                  if (!confirm('Delete this comment?')) return;
-                  try {
-                    await api.delete(`/comments/${comment._id}`);
-                    onDelete?.(comment._id);
-                  } catch (error) {
-                    console.error('Failed to delete comment', error);
-                  }
-                }}
-                className="text-red-500 hover:text-red-700 transition-colors text-sm"
-                title="Delete your comment"
-              >
-                🗑️
-              </button>
-            )}
 
             {/* Translate / Original button */}
             <button
