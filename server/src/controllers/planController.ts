@@ -12,13 +12,13 @@ export type Plan = 'bronze' | 'silver' | 'gold';
 const PLAN_PRICES: Record<Plan, number> = {
   bronze: 1000,   // ₹10  in paise
   silver: 5000,   // ₹50  in paise
-  gold:   10000,  // ₹100 in paise
+  gold: 10000,  // ₹100 in paise
 };
 
 const PLAN_PRICES_INR: Record<Plan, number> = {
   bronze: 10,
   silver: 50,
-  gold:   100,
+  gold: 100,
 };
 
 const VALID_PLANS: Plan[] = ['bronze', 'silver', 'gold'];
@@ -26,7 +26,7 @@ const VALID_PLANS: Plan[] = ['bronze', 'silver', 'gold'];
 // ── Helper ─────────────────────────────────────────────────────────────────────
 
 function getRazorpay() {
-  const key_id     = process.env.RAZORPAY_KEY_ID;
+  const key_id = process.env.RAZORPAY_KEY_ID;
   const key_secret = process.env.RAZORPAY_KEY_SECRET;
   if (!key_id || !key_secret) {
     throw new Error('Razorpay keys missing — set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.');
@@ -39,8 +39,8 @@ function parseError(error: unknown): string {
   if (typeof error === 'object' && error !== null) {
     const e = error as any;
     if (e.error?.description) return e.error.description;
-    if (e.description)        return e.description;
-    if (e.message)            return e.message;
+    if (e.description) return e.description;
+    if (e.message) return e.message;
     return JSON.stringify(e);
   }
   return String(error);
@@ -64,16 +64,16 @@ export const createPlanOrder = async (req: AuthRequest, res: Response) => {
     const receipt = `pl_${plan}_${String(req.user!._id).slice(-6)}_${Date.now().toString().slice(-8)}`;
 
     const order = await razorpay.orders.create({
-      amount:   PLAN_PRICES[plan],
+      amount: PLAN_PRICES[plan],
       currency: 'INR',
       receipt,
     });
 
     res.json({
-      orderId:  order.id,
-      amount:   order.amount,
+      orderId: order.id,
+      amount: order.amount,
       currency: order.currency,
-      keyId:    process.env.RAZORPAY_KEY_ID,
+      keyId: process.env.RAZORPAY_KEY_ID,
       plan,
     });
   } catch (error) {
@@ -100,7 +100,7 @@ export const verifyPlanPayment = async (req: AuthRequest, res: Response) => {
     }
 
     // Validate HMAC signature
-    const body     = `${razorpay_order_id}|${razorpay_payment_id}`;
+    const body = `${razorpay_order_id}|${razorpay_payment_id}`;
     const expected = crypto
       .createHmac('sha256', key_secret)
       .update(body)
@@ -111,7 +111,7 @@ export const verifyPlanPayment = async (req: AuthRequest, res: Response) => {
     }
 
     // Plan valid for 1 month from now
-    const planFrom     = new Date();
+    const planFrom = new Date();
     const planExpiresAt = new Date(planFrom);
     planExpiresAt.setMonth(planExpiresAt.getMonth() + 1);
 
@@ -130,19 +130,21 @@ export const verifyPlanPayment = async (req: AuthRequest, res: Response) => {
     }
 
     // Send invoice email (non-blocking — don't fail if email fails)
+    console.log('Sending invoice email to:', user.email);
     sendPlanInvoiceEmail({
-      toEmail:     user.email,
+      toEmail: user.email,
       displayName: user.displayName,
-      plan:        plan.charAt(0).toUpperCase() + plan.slice(1),
-      amount:      PLAN_PRICES_INR[plan as Plan],
-      paymentId:   razorpay_payment_id,
+      plan: plan.charAt(0).toUpperCase() + plan.slice(1),
+      amount: PLAN_PRICES_INR[plan as Plan],
+      paymentId: razorpay_payment_id,
       planFrom,
-      planTo:      planExpiresAt,
-    }).catch(err => console.error('Invoice email failed:', err.message));
+      planTo: planExpiresAt,
+    }).then(() => console.log('Invoice email sent successfully'))
+      .catch(err => console.error('Invoice email failed:', err.message));
 
     res.json({
-      success:       true,
-      plan:          user.plan,
+      success: true,
+      plan: user.plan,
       planExpiresAt: user.planExpiresAt,
     });
   } catch (error) {
@@ -169,7 +171,7 @@ export const getMyPlan = async (req: AuthRequest, res: Response) => {
     }
 
     res.json({
-      plan:          effectivePlan,
+      plan: effectivePlan,
       planExpiresAt: effectivePlan === 'free' ? null : user.planExpiresAt,
     });
   } catch (error) {
