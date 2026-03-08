@@ -69,7 +69,7 @@ export default function PlanUpgradeModal({ currentPlan, onClose, onSuccess }: Pl
         amount: data.amount,
         currency: data.currency,
         name: 'YouTubeClone',
-        description: `${cfg.name} Plan - Rs.${cfg.price}/month`,
+        description: `${cfg.name} Plan - Rs.${cfg.price}`,
         order_id: data.orderId,
         prefill: {
           contact: '9999999999',
@@ -189,7 +189,7 @@ export default function PlanUpgradeModal({ currentPlan, onClose, onSuccess }: Pl
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {[
                 ['Watch time', '5 min', '7 min', '10 min', 'Unlimited'],
-                ['Price/month', 'Free', '₹10', '₹50', '₹100'],
+                ['Price', 'Free', '₹10', '₹50', '₹100'],
                 ['Valid for', '—', '1 month', '1 month', '1 month'],
               ].map(([label, ...vals]) => (
                 <tr key={label}>
