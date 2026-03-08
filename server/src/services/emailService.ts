@@ -1,9 +1,9 @@
 import nodemailer from 'nodemailer';
 
 // ── Transporter ───────────────────────────────────────────────────────────────
-// Uses Gmail with an App Password. In Render, set:
-//   EMAIL_USER = youraddress@gmail.com
-//   EMAIL_PASS = your-16-char-app-password  (Gmail → Security → App passwords)
+// Render free tier does not support IPv6 outbound connections.
+// Gmail SMTP sometimes resolves to IPv6 (2607:f8b0:...) which causes ENETUNREACH.
+// Fix: connect directly to smtp.gmail.com on port 465 with family:4 (force IPv4).
 
 function getTransporter() {
   const user = process.env.EMAIL_USER;
@@ -14,9 +14,12 @@ function getTransporter() {
   }
 
   return nodemailer.createTransport({
-    service: 'gmail',
+    host:   'smtp.gmail.com',
+    port:   465,
+    secure: true,           // SSL on port 465
+    family: 4,              // ← force IPv4, fixes ENETUNREACH on Render free tier
     auth: { user, pass },
-  });
+  } as any);
 }
 
 // ── Plan invoice email ─────────────────────────────────────────────────────────
@@ -38,12 +41,13 @@ export async function sendPlanInvoiceEmail(opts: InvoiceOptions): Promise<void> 
     d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 
   const planColors: Record<string, string> = {
-    bronze: '#b45309',
-    silver: '#64748b',
-    gold:   '#d97706',
+    bronze:  '#b45309',
+    silver:  '#64748b',
+    gold:    '#d97706',
+    premium: '#2563eb',
   };
   const accentColor = planColors[opts.plan.toLowerCase()] ?? '#2563eb';
-  const planBadge   = { bronze: '🥉', silver: '🥈', gold: '🥇' }[opts.plan.toLowerCase()] ?? '';
+  const planBadge   = { bronze: '🥉', silver: '🥈', gold: '🥇', premium: '⭐' }[opts.plan.toLowerCase()] ?? '';
 
   const html = `
 <!DOCTYPE html>
@@ -67,7 +71,7 @@ export async function sendPlanInvoiceEmail(opts: InvoiceOptions): Promise<void> 
                 ${opts.plan} Plan Activated
               </h1>
               <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">
-                Payment confirmed — thank you!
+                Payment confirmed - thank you!
               </p>
             </td>
           </tr>
@@ -93,18 +97,16 @@ export async function sendPlanInvoiceEmail(opts: InvoiceOptions): Promise<void> 
                 </tr>
                 <tr>
                   <td style="padding:14px 16px;font-size:15px;color:#111827;border-bottom:1px solid #e5e7eb;">
-                    ${planBadge} ${opts.plan} Plan — 1 Month
+                    ${planBadge} ${opts.plan} Plan - 1 Month
                   </td>
                   <td style="padding:14px 16px;font-size:15px;color:#111827;font-weight:700;text-align:right;border-bottom:1px solid #e5e7eb;">
-                    ₹${opts.amount}
+                    Rs.${opts.amount}
                   </td>
                 </tr>
                 <tr style="background:#f9fafb;">
-                  <td style="padding:12px 16px;font-size:14px;color:#374151;font-weight:600;">
-                    Total Paid
-                  </td>
+                  <td style="padding:12px 16px;font-size:14px;color:#374151;font-weight:600;">Total Paid</td>
                   <td style="padding:12px 16px;font-size:16px;color:${accentColor};font-weight:700;text-align:right;">
-                    ₹${opts.amount}
+                    Rs.${opts.amount}
                   </td>
                 </tr>
               </table>
@@ -112,10 +114,10 @@ export async function sendPlanInvoiceEmail(opts: InvoiceOptions): Promise<void> 
               <!-- Details -->
               <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
                 ${[
-                  ['Payment ID',   opts.paymentId],
-                  ['Plan Valid From', fmt(opts.planFrom)],
-                  ['Plan Expires On', fmt(opts.planTo)],
-                  ['Billed To',    opts.toEmail],
+                  ['Payment ID',       opts.paymentId],
+                  ['Plan Valid From',  fmt(opts.planFrom)],
+                  ['Plan Expires On',  fmt(opts.planTo)],
+                  ['Billed To',        opts.toEmail],
                 ].map(([label, value]) => `
                   <tr>
                     <td style="padding:6px 0;font-size:13px;color:#6b7280;width:40%;">${label}</td>
@@ -150,7 +152,7 @@ export async function sendPlanInvoiceEmail(opts: InvoiceOptions): Promise<void> 
   await transporter.sendMail({
     from:    `"YouTubeClone" <${process.env.EMAIL_USER}>`,
     to:      opts.toEmail,
-    subject: `${planBadge} Your ${opts.plan} Plan Invoice — ₹${opts.amount}`,
+    subject: `Your ${opts.plan} Plan Invoice - Rs.${opts.amount}`,
     html,
   });
 }
