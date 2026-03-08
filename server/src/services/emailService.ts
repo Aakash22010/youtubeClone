@@ -1,25 +1,14 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
-// ── Transporter ───────────────────────────────────────────────────────────────
-// Render free tier does not support IPv6 outbound connections.
-// Gmail SMTP sometimes resolves to IPv6 (2607:f8b0:...) which causes ENETUNREACH.
-// Fix: connect directly to smtp.gmail.com on port 465 with family:4 (force IPv4).
+// ── Resend HTTP API ────────────────────────────────────────────────────────────
+// Uses HTTPS (port 443) — works on Render free tier unlike SMTP (IPv6 blocked).
+// Get a free API key at https://resend.com — no credit card needed.
+// Add RESEND_API_KEY to Render environment variables.
 
-function getTransporter() {
-  const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_PASS;
-
-  if (!user || !pass) {
-    throw new Error('EMAIL_USER and EMAIL_PASS must be set in environment variables.');
-  }
-
-  return nodemailer.createTransport({
-    host:   'smtp.gmail.com',
-    port:   465,
-    secure: true,           // SSL on port 465
-    family: 4,              // ← force IPv4, fixes ENETUNREACH on Render free tier
-    auth: { user, pass },
-  } as any);
+function getResend(): Resend {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) throw new Error('RESEND_API_KEY must be set in environment variables.');
+  return new Resend(key);
 }
 
 // ── Plan invoice email ─────────────────────────────────────────────────────────
@@ -28,14 +17,14 @@ interface InvoiceOptions {
   toEmail:     string;
   displayName: string;
   plan:        string;
-  amount:      number;   // INR
+  amount:      number;
   paymentId:   string;
   planFrom:    Date;
   planTo:      Date;
 }
 
 export async function sendPlanInvoiceEmail(opts: InvoiceOptions): Promise<void> {
-  const transporter = getTransporter();
+  const resend = getResend();
 
   const fmt = (d: Date) =>
     d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -63,7 +52,6 @@ export async function sendPlanInvoiceEmail(opts: InvoiceOptions): Promise<void> 
       <td align="center">
         <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
 
-          <!-- Header -->
           <tr>
             <td style="background:${accentColor};padding:28px 32px;text-align:center;">
               <p style="margin:0;font-size:28px;">${planBadge}</p>
@@ -76,7 +64,6 @@ export async function sendPlanInvoiceEmail(opts: InvoiceOptions): Promise<void> 
             </td>
           </tr>
 
-          <!-- Body -->
           <tr>
             <td style="padding:32px;">
               <p style="margin:0 0 20px;font-size:15px;color:#374151;">
@@ -84,7 +71,6 @@ export async function sendPlanInvoiceEmail(opts: InvoiceOptions): Promise<void> 
                 Your <strong>${opts.plan} Plan</strong> is now active. Here are your invoice details:
               </p>
 
-              <!-- Invoice table -->
               <table width="100%" cellpadding="0" cellspacing="0"
                 style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:24px;">
                 <tr style="background:#f9fafb;">
@@ -111,13 +97,12 @@ export async function sendPlanInvoiceEmail(opts: InvoiceOptions): Promise<void> 
                 </tr>
               </table>
 
-              <!-- Details -->
               <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
                 ${[
-                  ['Payment ID',       opts.paymentId],
-                  ['Plan Valid From',  fmt(opts.planFrom)],
-                  ['Plan Expires On',  fmt(opts.planTo)],
-                  ['Billed To',        opts.toEmail],
+                  ['Payment ID',      opts.paymentId],
+                  ['Plan Valid From', fmt(opts.planFrom)],
+                  ['Plan Expires On', fmt(opts.planTo)],
+                  ['Billed To',       opts.toEmail],
                 ].map(([label, value]) => `
                   <tr>
                     <td style="padding:6px 0;font-size:13px;color:#6b7280;width:40%;">${label}</td>
@@ -133,11 +118,10 @@ export async function sendPlanInvoiceEmail(opts: InvoiceOptions): Promise<void> 
             </td>
           </tr>
 
-          <!-- Footer -->
           <tr>
             <td style="background:#f9fafb;padding:20px 32px;text-align:center;border-top:1px solid #e5e7eb;">
               <p style="margin:0;font-size:12px;color:#9ca3af;">
-                YouTubeClone · This is an automated invoice, please do not reply.
+                YouTubeClone - This is an automated invoice, please do not reply.
               </p>
             </td>
           </tr>
@@ -149,10 +133,12 @@ export async function sendPlanInvoiceEmail(opts: InvoiceOptions): Promise<void> 
 </body>
 </html>`;
 
-  await transporter.sendMail({
-    from:    `"YouTubeClone" <${process.env.EMAIL_USER}>`,
+  const { error } = await resend.emails.send({
+    from:    'YouTubeClone <onboarding@resend.dev>',  // use this until you add your own domain
     to:      opts.toEmail,
     subject: `Your ${opts.plan} Plan Invoice - Rs.${opts.amount}`,
     html,
   });
+
+  if (error) throw new Error(error.message);
 }
