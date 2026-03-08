@@ -149,7 +149,6 @@ export default function PlanUpgradeModal({ currentPlan, onClose, onSuccess }: Pl
 
                 <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
                   ₹{cfg.price}
-                  <span className="text-sm font-normal text-gray-400">/mo</span>
                 </p>
 
                 <button
