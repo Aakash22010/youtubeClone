@@ -1,16 +1,10 @@
 import { Request, Response } from 'express';
 import { Resend } from 'resend';
-import fetch from 'node-fetch';
+import axios from 'axios';  
 
 // ── In-memory OTP store ───────────────────────────────────────────────────────
-// key = email (lowercase) or phone (digits only)
-
-interface OTPEntry {
-  otp:       string;
-  expiresAt: number;
-}
-
-const otpStore = new Map<string, OTPEntry>();
+interface OTPEntry { otp: string; expiresAt: number; }
+const otpStore      = new Map<string, OTPEntry>();
 const OTP_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
 function generateOTP(): string {
@@ -19,13 +13,12 @@ function generateOTP(): string {
 
 function getResend(): Resend {
   const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error('RESEND_API_KEY not set');
+  if (!key) throw new Error('RESEND_API_KEY not set in environment variables');
   return new Resend(key);
 }
 
 // ── POST /api/otp/send-email ──────────────────────────────────────────────────
-// Body: { email: string }
-// Used for South India users
+// South India users
 export const sendEmailOTP = async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
@@ -47,7 +40,7 @@ export const sendEmailOTP = async (req: Request, res: Response) => {
           <div style="background:#ffffff;border:2px solid #e5e7eb;border-radius:8px;padding:24px;text-align:center;margin-bottom:24px;">
             <span style="font-size:36px;font-weight:700;letter-spacing:12px;color:#2563eb;">${otp}</span>
           </div>
-          <p style="color:#9ca3af;font-size:13px;">If you didn't request this, ignore this email.</p>
+          <p style="color:#9ca3af;font-size:13px;">If you did not request this, ignore this email.</p>
           <p style="color:#9ca3af;font-size:13px;">YouTubeClone Security Team</p>
         </div>
       `,
@@ -62,14 +55,13 @@ export const sendEmailOTP = async (req: Request, res: Response) => {
 };
 
 // ── POST /api/otp/send-phone ──────────────────────────────────────────────────
-// Body: { phone: string }   — digits only or with +91 prefix
-// Used for non-South India users via Fast2SMS (free, no billing needed)
+// Non-South India users via Fast2SMS
 export const sendPhoneOTP = async (req: Request, res: Response) => {
   try {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ error: 'Phone number is required' });
 
-    // Normalise: strip +91 / country code, keep 10 digits
+    // Normalise: keep last 10 digits
     const digits = phone.replace(/\D/g, '').slice(-10);
     if (digits.length !== 10) {
       return res.status(400).json({ error: 'Enter a valid 10-digit Indian mobile number' });
@@ -82,41 +74,42 @@ export const sendPhoneOTP = async (req: Request, res: Response) => {
     const expiresAt = Date.now() + OTP_EXPIRY_MS;
     otpStore.set(digits, { otp, expiresAt });
 
-    // Fast2SMS Quick SMS API
-    const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
-      method:  'POST',
-      headers: {
-        authorization: apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        route:    'otp',
+    // Fast2SMS OTP route via axios (CommonJS-compatible, already installed)
+    const response = await axios.post(
+      'https://www.fast2sms.com/dev/bulkV2',
+      {
+        route:            'otp',
         variables_values: otp,
-        numbers:  digits,
-      }),
-    });
+        numbers:          digits,
+      },
+      {
+        headers: {
+          authorization: apiKey,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
 
-    const data = await response.json() as any;
-    if (!data.return) {
-      throw new Error(data.message?.[0] || 'Fast2SMS send failed');
+    if (!response.data?.return) {
+      const msg = response.data?.message?.[0] || 'Fast2SMS send failed';
+      throw new Error(msg);
     }
 
     res.json({ success: true, message: `OTP sent to ${digits.slice(0, 4)}XXXXXX` });
-  } catch (err) {
-    console.error('sendPhoneOTP error:', (err as Error).message);
-    res.status(500).json({ error: (err as Error).message });
+  } catch (err: any) {
+    const msg = err.response?.data?.message?.[0] || err.message || 'Failed to send SMS';
+    console.error('sendPhoneOTP error:', msg);
+    res.status(500).json({ error: msg });
   }
 };
 
 // ── POST /api/otp/verify ──────────────────────────────────────────────────────
-// Body: { key: string, otp: string }
-// key = email (for South India) or phone digits (for others)
+// key = email (South India) or 10-digit phone (other regions)
 export const verifyOTP = async (req: Request, res: Response) => {
   try {
     const { key, otp } = req.body;
     if (!key || !otp) return res.status(400).json({ error: 'Key and OTP are required' });
 
-    // Normalise key: email stays as-is (lowercase), phone → last 10 digits
     const normalised = key.includes('@')
       ? key.toLowerCase()
       : key.replace(/\D/g, '').slice(-10);
