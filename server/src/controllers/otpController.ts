@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { Resend } from 'resend';
-import axios from 'axios';  
+import axios from 'axios';  // already in your dependencies — no new install needed
 
 // ── In-memory OTP store ───────────────────────────────────────────────────────
 interface OTPEntry { otp: string; expiresAt: number; }
@@ -90,18 +90,29 @@ export const sendPhoneOTP = async (req: Request, res: Response) => {
       }
     );
 
+    // Log full response so we can diagnose Fast2SMS errors
+    console.log('Fast2SMS response:', JSON.stringify(response.data));
+
     if (!response.data?.return) {
-      const msg = response.data?.message?.[0] || 'Fast2SMS send failed';
-      throw new Error(msg);
+      const messages = response.data?.message;
+      const msg = Array.isArray(messages)
+        ? messages.join(' | ')
+        : (typeof messages === 'string' ? messages : JSON.stringify(response.data));
+      throw new Error(msg || 'Fast2SMS send failed');
     }
 
     res.json({ success: true, message: `OTP sent to ${digits.slice(0, 4)}XXXXXX` });
   } catch (err: any) {
-    const msg = err.response?.data?.message?.[0] || err.message || 'Failed to send SMS';
-    console.error('sendPhoneOTP error:', msg);
+    if (err.response) {
+      console.error('Fast2SMS HTTP error:', err.response.status, JSON.stringify(err.response.data));
+    } else {
+      console.error('sendPhoneOTP full error:', err.message);
+    }
+    const msg = err.message || 'Failed to send SMS';
     res.status(500).json({ error: msg });
   }
 };
+
 
 // ── POST /api/otp/verify ──────────────────────────────────────────────────────
 // key = email (South India) or 10-digit phone (other regions)
