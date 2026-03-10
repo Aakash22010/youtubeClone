@@ -1,17 +1,16 @@
 import { Request, Response } from 'express';
 import { Resend } from 'resend';
+import fetch from 'node-fetch';
 
 // ── In-memory OTP store ───────────────────────────────────────────────────────
-// { email → { otp, expiresAt } }
-// Cleared automatically on verify or expiry check
+// key = email (lowercase) or phone (digits only)
 
 interface OTPEntry {
   otp:       string;
-  expiresAt: number;  // Date.now() ms
+  expiresAt: number;
 }
 
 const otpStore = new Map<string, OTPEntry>();
-
 const OTP_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
 function generateOTP(): string {
@@ -24,8 +23,9 @@ function getResend(): Resend {
   return new Resend(key);
 }
 
-// ── POST /api/otp/send ────────────────────────────────────────────────────────
+// ── POST /api/otp/send-email ──────────────────────────────────────────────────
 // Body: { email: string }
+// Used for South India users
 export const sendEmailOTP = async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
@@ -33,7 +33,6 @@ export const sendEmailOTP = async (req: Request, res: Response) => {
 
     const otp       = generateOTP();
     const expiresAt = Date.now() + OTP_EXPIRY_MS;
-
     otpStore.set(email.toLowerCase(), { otp, expiresAt });
 
     const resend = getResend();
@@ -55,7 +54,6 @@ export const sendEmailOTP = async (req: Request, res: Response) => {
     });
 
     if (error) throw new Error(error.message);
-
     res.json({ success: true, message: 'OTP sent to email' });
   } catch (err) {
     console.error('sendEmailOTP error:', (err as Error).message);
@@ -63,30 +61,80 @@ export const sendEmailOTP = async (req: Request, res: Response) => {
   }
 };
 
-// ── POST /api/otp/verify ──────────────────────────────────────────────────────
-// Body: { email: string, otp: string }
-export const verifyEmailOTP = async (req: Request, res: Response) => {
+// ── POST /api/otp/send-phone ──────────────────────────────────────────────────
+// Body: { phone: string }   — digits only or with +91 prefix
+// Used for non-South India users via Fast2SMS (free, no billing needed)
+export const sendPhoneOTP = async (req: Request, res: Response) => {
   try {
-    const { email, otp } = req.body;
-    if (!email || !otp) return res.status(400).json({ error: 'Email and OTP are required' });
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: 'Phone number is required' });
 
-    const entry = otpStore.get(email.toLowerCase());
+    // Normalise: strip +91 / country code, keep 10 digits
+    const digits = phone.replace(/\D/g, '').slice(-10);
+    if (digits.length !== 10) {
+      return res.status(400).json({ error: 'Enter a valid 10-digit Indian mobile number' });
+    }
+
+    const apiKey = process.env.FAST2SMS_API_KEY;
+    if (!apiKey) throw new Error('FAST2SMS_API_KEY not set in environment variables');
+
+    const otp       = generateOTP();
+    const expiresAt = Date.now() + OTP_EXPIRY_MS;
+    otpStore.set(digits, { otp, expiresAt });
+
+    // Fast2SMS Quick SMS API
+    const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
+      method:  'POST',
+      headers: {
+        authorization: apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        route:    'otp',
+        variables_values: otp,
+        numbers:  digits,
+      }),
+    });
+
+    const data = await response.json() as any;
+    if (!data.return) {
+      throw new Error(data.message?.[0] || 'Fast2SMS send failed');
+    }
+
+    res.json({ success: true, message: `OTP sent to ${digits.slice(0, 4)}XXXXXX` });
+  } catch (err) {
+    console.error('sendPhoneOTP error:', (err as Error).message);
+    res.status(500).json({ error: (err as Error).message });
+  }
+};
+
+// ── POST /api/otp/verify ──────────────────────────────────────────────────────
+// Body: { key: string, otp: string }
+// key = email (for South India) or phone digits (for others)
+export const verifyOTP = async (req: Request, res: Response) => {
+  try {
+    const { key, otp } = req.body;
+    if (!key || !otp) return res.status(400).json({ error: 'Key and OTP are required' });
+
+    // Normalise key: email stays as-is (lowercase), phone → last 10 digits
+    const normalised = key.includes('@')
+      ? key.toLowerCase()
+      : key.replace(/\D/g, '').slice(-10);
+
+    const entry = otpStore.get(normalised);
 
     if (!entry) {
       return res.status(400).json({ error: 'No OTP found. Please request a new one.' });
     }
-
     if (Date.now() > entry.expiresAt) {
-      otpStore.delete(email.toLowerCase());
+      otpStore.delete(normalised);
       return res.status(400).json({ error: 'OTP has expired. Please request a new one.' });
     }
-
     if (entry.otp !== otp.trim()) {
       return res.status(400).json({ error: 'Invalid OTP. Please try again.' });
     }
 
-    // OTP verified — clean up
-    otpStore.delete(email.toLowerCase());
+    otpStore.delete(normalised);
     res.json({ success: true, message: 'OTP verified successfully' });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
