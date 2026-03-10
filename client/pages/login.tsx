@@ -3,12 +3,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import {
-  FiMail, FiLock, FiAlertCircle, FiPhone, FiShield, FiSun, FiMoon,
-} from 'react-icons/fi';
+import { FiMail, FiLock, FiAlertCircle, FiShield, FiSun, FiMoon } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
 import api from '../lib/api';
-import { detectLocationTheme, AuthMethod } from '../utils/locationTheme';
+import { detectLocationTheme } from '../utils/locationTheme';
 
 type Step = 'credentials' | 'otp';
 
@@ -19,44 +17,31 @@ export default function Login() {
 
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
-  const [phone,    setPhone]    = useState('');
   const [otp,      setOtp]      = useState('');
   const [step,     setStep]     = useState<Step>('credentials');
   const [error,    setError]    = useState('');
   const [info,     setInfo]     = useState('');
   const [loading,  setLoading]  = useState(false);
 
-  const [authMethod,    setAuthMethod]    = useState<AuthMethod>('phone-otp');
   const [isSouthIndia,  setIsSouthIndia]  = useState(false);
   const [locationReady, setLocationReady] = useState(false);
 
-  // ── Detect location on mount ───────────────────────────────────────────────
+  // Region detection — controls theme + badge only, OTP always goes to email
   useEffect(() => {
     detectLocationTheme().then(result => {
-      setAuthMethod(result.authMethod);
       setIsSouthIndia(result.isSouthIndia);
       setLocationReady(true);
     });
   }, []);
 
-  // ── Step 1: send OTP ───────────────────────────────────────────────────────
+  // ── Step 1: send OTP to email ──────────────────────────────────────────────
   const handleCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      if (authMethod === 'email-otp') {
-        await api.post('/otp/send-email', { email });
-        setInfo(`A 6-digit OTP has been sent to ${email}`);
-      } else {
-        if (!phone) {
-          setError('Please enter your mobile number to receive OTP.');
-          return;
-        }
-        await api.post('/otp/send-phone', { phone });
-        const masked = phone.replace(/\D/g, '').slice(-10);
-        setInfo(`A 6-digit OTP has been sent to ${masked.slice(0, 4)}XXXXXX`);
-      }
+      await api.post('/otp/send-email', { email });
+      setInfo(`A 6-digit OTP has been sent to ${email}`);
       setStep('otp');
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'Failed to send OTP');
@@ -65,21 +50,15 @@ export default function Login() {
     }
   };
 
-  // ── Step 2: verify OTP + sign in ──────────────────────────────────────────
+  // ── Step 2: verify OTP then sign in with Firebase ─────────────────────────
   const handleOTPVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const key = authMethod === 'email-otp' ? email : phone;
-
-      // 1. Verify OTP with backend
-      const { data } = await api.post('/otp/verify', { key, otp });
+      const { data } = await api.post('/otp/verify', { email, otp });
       if (!data.success) throw new Error('Invalid OTP');
-
-      // 2. Sign in with Firebase email+password
       await login(email, password);
-
       router.push('/');
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'Verification failed');
@@ -94,13 +73,8 @@ export default function Login() {
     setOtp('');
     setLoading(true);
     try {
-      if (authMethod === 'email-otp') {
-        await api.post('/otp/send-email', { email });
-        setInfo(`OTP resent to ${email}`);
-      } else {
-        await api.post('/otp/send-phone', { phone });
-        setInfo('OTP resent to your mobile number');
-      }
+      await api.post('/otp/send-email', { email });
+      setInfo(`OTP resent to ${email}`);
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'Failed to resend OTP');
     } finally {
@@ -122,9 +96,8 @@ export default function Login() {
     }
   };
 
-  const toggleTheme   = () => setTheme(theme === 'dark' ? 'light' : 'dark');
-  const isDark        = theme === 'dark';
-  const otpTarget     = authMethod === 'email-otp' ? email : phone;
+  const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
+  const isDark      = theme === 'dark';
 
   const inputCls = `w-full pl-10 pr-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
     isDark
@@ -168,7 +141,7 @@ export default function Login() {
                 </Link>
               </>
             ) : (
-              `We sent a 6-digit code to ${otpTarget}`
+              `We sent a 6-digit code to ${email}`
             )}
           </p>
 
@@ -181,7 +154,7 @@ export default function Login() {
                   : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
               }`}>
                 <FiShield size={11}/>
-                {isSouthIndia ? 'South India — Email OTP' : 'Other region — Mobile OTP'}
+                {isSouthIndia ? 'South India — Email OTP' : 'Other region — Email OTP'}
               </span>
             </div>
           )}
@@ -205,7 +178,6 @@ export default function Login() {
         {/* ══ STEP 1 — Credentials ══════════════════════════════════════════ */}
         {step === 'credentials' && (
           <>
-            {/* Google */}
             <button
               onClick={handleGoogle}
               disabled={loading}
@@ -226,46 +198,29 @@ export default function Login() {
             </div>
 
             <form onSubmit={handleCredentials} className="space-y-4">
-              {/* Email */}
               <div>
                 <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                   Email address
                 </label>
                 <div className="relative">
                   <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-                  <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                  <input type="email" required value={email}
+                    onChange={e => setEmail(e.target.value)}
                     placeholder="you@example.com" className={inputCls}/>
                 </div>
               </div>
 
-              {/* Password */}
               <div>
                 <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                   Password
                 </label>
                 <div className="relative">
                   <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-                  <input type="password" required value={password} onChange={e => setPassword(e.target.value)}
+                  <input type="password" required value={password}
+                    onChange={e => setPassword(e.target.value)}
                     placeholder="••••••••" className={inputCls}/>
                 </div>
               </div>
-
-              {/* Phone — only for non-South India */}
-              {authMethod === 'phone-otp' && (
-                <div>
-                  <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Mobile number <span className="text-gray-400 font-normal">(for OTP)</span>
-                  </label>
-                  <div className="relative">
-                    <FiPhone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-                    <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-                      placeholder="+91 98765 43210" className={inputCls}/>
-                  </div>
-                  <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                    Include country code e.g. +91 for India
-                  </p>
-                </div>
-              )}
 
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -279,11 +234,7 @@ export default function Login() {
 
               <button type="submit" disabled={loading}
                 className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                {loading
-                  ? 'Sending OTP...'
-                  : authMethod === 'email-otp'
-                  ? 'Continue — Send Email OTP'
-                  : 'Continue — Send Mobile OTP'}
+                {loading ? 'Sending OTP...' : 'Continue — Send Email OTP'}
               </button>
             </form>
           </>
@@ -294,15 +245,13 @@ export default function Login() {
           <form onSubmit={handleOTPVerify} className="space-y-5">
             <div className={`rounded-xl p-4 text-center ${isDark ? 'bg-[#2a2a2a]' : 'bg-gray-50'}`}>
               <div className="flex justify-center mb-2">
-                {authMethod === 'email-otp'
-                  ? <FiMail size={28} className="text-blue-500"/>
-                  : <FiPhone size={28} className="text-blue-500"/>}
+                <FiMail size={28} className="text-blue-500"/>
               </div>
               <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {authMethod === 'email-otp' ? 'Check your email' : 'Check your phone'}
+                Check your email
               </p>
               <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Sent a 6-digit code to <strong>{otpTarget}</strong>
+                Sent a 6-digit code to <strong>{email}</strong>
               </p>
             </div>
 
