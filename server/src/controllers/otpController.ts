@@ -1,37 +1,21 @@
 import { Request, Response } from 'express';
-import nodemailer from 'nodemailer';
+import axios from 'axios';
 
-// ── In-memory OTP store ───────────────────────────────────────────────────────
-interface OTPEntry {
-  otp:       string;
-  expiresAt: number;
-}
-
+interface OTPEntry { otp: string; expiresAt: number; }
 const otpStore      = new Map<string, OTPEntry>();
-const OTP_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+const OTP_EXPIRY_MS = 10 * 60 * 1000;
 
 function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Force IPv4 to avoid ENETUNREACH on Render free tier (Gmail resolves to IPv6)
-function getTransporter() {
-  const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_PASS;
-  if (!user || !pass) {
-    throw new Error('EMAIL_USER and EMAIL_PASS must be set in environment variables');
-  }
-  return nodemailer.createTransport({
-    host:   'smtp.gmail.com',
-    port:   465,
-    secure: true,
-    family: 4,        // force IPv4
-    auth: { user, pass },
-  } as any);
+function getBrevoKey(): string {
+  const key = process.env.BREVO_API_KEY;
+  if (!key) throw new Error('BREVO_API_KEY not set in environment variables');
+  return key;
 }
 
 // ── POST /api/otp/send-email ──────────────────────────────────────────────────
-// Body: { email: string }
 export const sendEmailOTP = async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
@@ -41,35 +25,41 @@ export const sendEmailOTP = async (req: Request, res: Response) => {
     const expiresAt = Date.now() + OTP_EXPIRY_MS;
     otpStore.set(email.toLowerCase(), { otp, expiresAt });
 
-    const transporter = getTransporter();
-    await transporter.sendMail({
-      from:    `"YouTubeClone" <${process.env.EMAIL_USER}>`,
-      to:      email,
-      subject: `Your login OTP - ${otp}`,
-      html: `
-        <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px;">
-          <h2 style="color:#111827;margin-bottom:8px;">Your Login OTP</h2>
-          <p style="color:#6b7280;margin-bottom:24px;">
-            Use this code to complete your sign-in. It expires in 10 minutes.
-          </p>
-          <div style="background:#ffffff;border:2px solid #e5e7eb;border-radius:8px;padding:24px;text-align:center;margin-bottom:24px;">
-            <span style="font-size:36px;font-weight:700;letter-spacing:12px;color:#2563eb;">${otp}</span>
+    await axios.post(
+      'https://api.brevo.com/v3/smtp/email',
+      {
+        sender:      { name: 'YouTubeClone', email: process.env.BREVO_SENDER_EMAIL },
+        to:          [{ email, name: email }],
+        subject:     `Your login OTP - ${otp}`,
+        htmlContent: `
+          <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px;">
+            <h2 style="color:#111827;margin-bottom:8px;">Your Login OTP</h2>
+            <p style="color:#6b7280;margin-bottom:24px;">Use this code to sign in. It expires in 10 minutes.</p>
+            <div style="background:#ffffff;border:2px solid #e5e7eb;border-radius:8px;padding:24px;text-align:center;margin-bottom:24px;">
+              <span style="font-size:36px;font-weight:700;letter-spacing:12px;color:#2563eb;">${otp}</span>
+            </div>
+            <p style="color:#9ca3af;font-size:13px;">If you did not request this, ignore this email.</p>
+            <p style="color:#9ca3af;font-size:13px;">YouTubeClone Security Team</p>
           </div>
-          <p style="color:#9ca3af;font-size:13px;">If you did not request this, ignore this email.</p>
-          <p style="color:#9ca3af;font-size:13px;">YouTubeClone Security Team</p>
-        </div>
-      `,
-    });
+        `,
+      },
+      {
+        headers: {
+          'api-key':      getBrevoKey(),
+          'Content-Type': 'application/json',
+        },
+      }
+    );
 
     res.json({ success: true, message: 'OTP sent to email' });
-  } catch (err) {
-    console.error('sendEmailOTP error:', (err as Error).message);
-    res.status(500).json({ error: (err as Error).message });
+  } catch (err: any) {
+    const msg = err.response?.data?.message || (err as Error).message;
+    console.error('sendEmailOTP error:', msg);
+    res.status(500).json({ error: msg });
   }
 };
 
 // ── POST /api/otp/verify ──────────────────────────────────────────────────────
-// Body: { email: string, otp: string }
 export const verifyEmailOTP = async (req: Request, res: Response) => {
   try {
     const { email, otp } = req.body;
