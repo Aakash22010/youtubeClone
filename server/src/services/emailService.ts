@@ -1,46 +1,50 @@
 import axios from 'axios';
 
-// ── Brevo (formerly Sendinblue) HTTP API ──────────────────────────────────────
-// Free tier: 300 emails/day, sends to ANY email address, no domain needed.
+// ── Mailjet HTTP API ──────────────────────────────────────────────────────────
+// Free tier: 200 emails/day, 6000/month — sends to ANY email, instant activation.
 // Uses HTTPS (port 443) — works on Render free tier.
-// Get API key: https://app.brevo.com → Settings → API Keys
+// Get keys: https://app.mailjet.com → Account Settings → API Keys
 
-function getBrevoKey(): string {
-  const key = process.env.BREVO_API_KEY;
-  if (!key) throw new Error('BREVO_API_KEY not set in environment variables');
-  return key;
+function getMailjetAuth() {
+  const apiKey    = process.env.MAILJET_API_KEY;
+  const secretKey = process.env.MAILJET_SECRET_KEY;
+  if (!apiKey || !secretKey) {
+    throw new Error('MAILJET_API_KEY and MAILJET_SECRET_KEY must be set in environment variables');
+  }
+  return { apiKey, secretKey };
 }
 
 async function sendEmail(opts: {
-  toEmail:  string;
-  toName:   string;
-  subject:  string;
-  html:     string;
+  toEmail: string;
+  toName:  string;
+  subject: string;
+  html:    string;
 }): Promise<void> {
-  const apiKey = getBrevoKey();
+  const { apiKey, secretKey } = getMailjetAuth();
 
   const response = await axios.post(
-    'https://api.brevo.com/v3/smtp/email',
+    'https://api.mailjet.com/v3.1/send',
     {
-      sender:     { name: 'YouTubeClone', email: process.env.BREVO_SENDER_EMAIL },
-      to:         [{ email: opts.toEmail, name: opts.toName }],
-      subject:    opts.subject,
-      htmlContent: opts.html,
+      Messages: [{
+        From:     { Email: process.env.MAILJET_SENDER_EMAIL, Name: 'YouTubeClone' },
+        To:       [{ Email: opts.toEmail, Name: opts.toName }],
+        Subject:  opts.subject,
+        HTMLPart: opts.html,
+      }],
     },
     {
-      headers: {
-        'api-key':      apiKey,
-        'Content-Type': 'application/json',
-      },
+      auth:    { username: apiKey, password: secretKey },
+      headers: { 'Content-Type': 'application/json' },
     }
   );
 
-  if (response.status !== 201) {
-    throw new Error(`Brevo API error: ${JSON.stringify(response.data)}`);
+  const status = response.data?.Messages?.[0]?.Status;
+  if (status !== 'success') {
+    throw new Error(`Mailjet send failed: ${JSON.stringify(response.data)}`);
   }
 }
 
-// ── Plan invoice email ─────────────────────────────────────────────────────────
+// ── Plan invoice email ────────────────────────────────────────────────────────
 
 interface InvoiceOptions {
   toEmail:     string;
@@ -136,9 +140,9 @@ export async function sendPlanInvoiceEmail(opts: InvoiceOptions): Promise<void> 
 </html>`;
 
   await sendEmail({
-    toEmail:  opts.toEmail,
-    toName:   opts.displayName,
-    subject:  `Your ${opts.plan} Plan Invoice - Rs.${opts.amount}`,
+    toEmail: opts.toEmail,
+    toName:  opts.displayName,
+    subject: `Your ${opts.plan} Plan Invoice - Rs.${opts.amount}`,
     html,
   });
 }

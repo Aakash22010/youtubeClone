@@ -9,10 +9,13 @@ function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-function getBrevoKey(): string {
-  const key = process.env.BREVO_API_KEY;
-  if (!key) throw new Error('BREVO_API_KEY not set in environment variables');
-  return key;
+function getMailjetAuth() {
+  const apiKey    = process.env.MAILJET_API_KEY;
+  const secretKey = process.env.MAILJET_SECRET_KEY;
+  if (!apiKey || !secretKey) {
+    throw new Error('MAILJET_API_KEY and MAILJET_SECRET_KEY must be set in environment variables');
+  }
+  return { apiKey, secretKey };
 }
 
 // ── POST /api/otp/send-email ──────────────────────────────────────────────────
@@ -25,35 +28,42 @@ export const sendEmailOTP = async (req: Request, res: Response) => {
     const expiresAt = Date.now() + OTP_EXPIRY_MS;
     otpStore.set(email.toLowerCase(), { otp, expiresAt });
 
-    await axios.post(
-      'https://api.brevo.com/v3/smtp/email',
+    const { apiKey, secretKey } = getMailjetAuth();
+
+    const response = await axios.post(
+      'https://api.mailjet.com/v3.1/send',
       {
-        sender:      { name: 'YouTubeClone', email: process.env.BREVO_SENDER_EMAIL },
-        to:          [{ email, name: email }],
-        subject:     `Your login OTP - ${otp}`,
-        htmlContent: `
-          <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px;">
-            <h2 style="color:#111827;margin-bottom:8px;">Your Login OTP</h2>
-            <p style="color:#6b7280;margin-bottom:24px;">Use this code to sign in. It expires in 10 minutes.</p>
-            <div style="background:#ffffff;border:2px solid #e5e7eb;border-radius:8px;padding:24px;text-align:center;margin-bottom:24px;">
-              <span style="font-size:36px;font-weight:700;letter-spacing:12px;color:#2563eb;">${otp}</span>
+        Messages: [{
+          From:     { Email: process.env.MAILJET_SENDER_EMAIL, Name: 'YouTubeClone' },
+          To:       [{ Email: email, Name: email }],
+          Subject:  `Your login OTP - ${otp}`,
+          HTMLPart: `
+            <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px;">
+              <h2 style="color:#111827;margin-bottom:8px;">Your Login OTP</h2>
+              <p style="color:#6b7280;margin-bottom:24px;">Use this code to sign in. It expires in 10 minutes.</p>
+              <div style="background:#ffffff;border:2px solid #e5e7eb;border-radius:8px;padding:24px;text-align:center;margin-bottom:24px;">
+                <span style="font-size:36px;font-weight:700;letter-spacing:12px;color:#2563eb;">${otp}</span>
+              </div>
+              <p style="color:#9ca3af;font-size:13px;">If you did not request this, ignore this email.</p>
+              <p style="color:#9ca3af;font-size:13px;">YouTubeClone Security Team</p>
             </div>
-            <p style="color:#9ca3af;font-size:13px;">If you did not request this, ignore this email.</p>
-            <p style="color:#9ca3af;font-size:13px;">YouTubeClone Security Team</p>
-          </div>
-        `,
+          `,
+        }],
       },
       {
-        headers: {
-          'api-key':      getBrevoKey(),
-          'Content-Type': 'application/json',
-        },
+        auth:    { username: apiKey, password: secretKey },
+        headers: { 'Content-Type': 'application/json' },
       }
     );
 
+    const status = response.data?.Messages?.[0]?.Status;
+    if (status !== 'success') {
+      throw new Error(`Mailjet error: ${JSON.stringify(response.data)}`);
+    }
+
     res.json({ success: true, message: 'OTP sent to email' });
   } catch (err: any) {
-    const msg = err.response?.data?.message || (err as Error).message;
+    const msg = err.response?.data?.ErrorMessage || (err as Error).message;
     console.error('sendEmailOTP error:', msg);
     res.status(500).json({ error: msg });
   }
