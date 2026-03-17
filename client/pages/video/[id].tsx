@@ -34,6 +34,8 @@ export default function VideoPage() {
     dailyLimit:         1,
   });
 
+  const [relatedVideos, setRelatedVideos] = useState<Video[]>([]);
+
   // ── Fetch video ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!id) return;
@@ -47,6 +49,11 @@ export default function VideoPage() {
           setUserLiked(data.likes?.includes(user._id) || false);
           setUserDisliked(data.dislikes?.includes(user._id) || false);
         }
+        // Fetch related videos for next-video gesture
+        try {
+          const { data: related } = await api.get<Video[]>('/videos?limit=20');
+          setRelatedVideos(related.filter((v: Video) => v._id !== id));
+        } catch (_) {}
       } catch (error) {
         console.error(error);
       } finally {
@@ -128,7 +135,12 @@ export default function VideoPage() {
             {/* ── Player ──────────────────────────────────────────────────── */}
             <VideoPlayer
               video={video}
-              onNextVideo={() => router.back()}
+              onNextVideo={() => {
+                if (relatedVideos.length > 0) {
+                  const next = relatedVideos[Math.floor(Math.random() * relatedVideos.length)];
+                  router.push(`/video/${next._id}`);
+                }
+              }}
               onOpenComments={() => {
                 setShowComments(true);
                 setTimeout(() => commentsRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
