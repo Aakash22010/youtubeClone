@@ -58,6 +58,7 @@ export default function VideoPlayer({ video, onNextVideo, onOpenComments }: Vide
   const [planExpiresAt,     setPlanExpiresAt]      = useState<string | null>(null);
   const [limitReached,      setLimitReached]       = useState(false);
   const [showPlanModal,     setShowPlanModal]      = useState(false);
+  const [showCloseDialog,  setShowCloseDialog]  = useState(false);
 
   const { user } = useAuth();
 
@@ -184,8 +185,7 @@ export default function VideoPlayer({ video, onNextVideo, onOpenComments }: Vide
         showHint('seek-forward');
       } else if (count >= 3) {
         // triple-tap right → close website
-        showHint('close-site');
-        setTimeout(() => window.close(), 600);
+        setShowCloseDialog(true);
       }
     } else if (zone === 'left') {
       if (count === 1) {
@@ -324,7 +324,7 @@ export default function VideoPlayer({ video, onNextVideo, onOpenComments }: Vide
     'seek-backward': { icon: '⏪', label: '-10s',          side: 'left'   },
     'play-pause':    { icon: playing ? '⏸' : '▶️', label: playing ? 'Pause' : 'Play', side: 'center' },
     'next-video':    { icon: '⏭',  label: 'Next Video',   side: 'center' },
-    'close-site':    { icon: '✖️', label: 'Closing...',    side: 'right'  },
+    'close-site':    { icon: '✖️', label: 'Close Tab',     side: 'right'  },
     'open-comments': { icon: '💬', label: 'Comments',      side: 'left'   },
   };
 
@@ -489,6 +489,44 @@ export default function VideoPlayer({ video, onNextVideo, onOpenComments }: Vide
           </div>
         </div>
       </div>
+
+      {/* ── Close tab dialog ─────────────────────────────────────────────── */}
+      {showCloseDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-[#1f1f1f] border border-[#3f3f3f] rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 text-center">
+            <div className="text-4xl mb-3">✖️</div>
+            <h3 className="text-white text-lg font-bold mb-2">Close this tab?</h3>
+            <p className="text-gray-400 text-sm mb-1">
+              Browsers block automatic tab closing for security reasons.
+            </p>
+            <p className="text-gray-300 text-sm font-medium mb-5">
+              Press{' '}
+              <kbd className="bg-[#2a2a2a] border border-[#4f4f4f] rounded px-2 py-0.5 text-white font-mono text-xs">Ctrl</kbd>
+              {' '}+{' '}
+              <kbd className="bg-[#2a2a2a] border border-[#4f4f4f] rounded px-2 py-0.5 text-white font-mono text-xs">W</kbd>
+              {' '}to close this tab.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCloseDialog(false)}
+                className="flex-1 py-2 rounded-xl border border-[#3f3f3f] text-gray-300 hover:bg-white/5 text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowCloseDialog(false);
+                  // Attempt anyway — works on programmatically opened tabs
+                  window.close();
+                }}
+                className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors"
+              >
+                Try Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPlanModal && (
         <PlanUpgradeModal
