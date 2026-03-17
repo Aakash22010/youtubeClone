@@ -5,10 +5,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { FiMail, FiLock, FiAlertCircle, FiShield, FiSun, FiMoon } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
-import api from '../lib/api';
 import { detectLocationTheme } from '../utils/locationTheme';
-
-type Step = 'credentials' | 'otp';
 
 export default function Login() {
   const { login, googleLogin } = useAuth();
@@ -17,16 +14,13 @@ export default function Login() {
 
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
-  const [otp,      setOtp]      = useState('');
-  const [step,     setStep]     = useState<Step>('credentials');
   const [error,    setError]    = useState('');
-  const [info,     setInfo]     = useState('');
   const [loading,  setLoading]  = useState(false);
 
   const [isSouthIndia,  setIsSouthIndia]  = useState(false);
   const [locationReady, setLocationReady] = useState(false);
 
-  // Region detection — controls theme + badge only, OTP always goes to email
+  // Region detection — drives theme + badge only
   useEffect(() => {
     detectLocationTheme().then(result => {
       setIsSouthIndia(result.isSouthIndia);
@@ -34,55 +28,20 @@ export default function Login() {
     });
   }, []);
 
-  // ── Step 1: send OTP to email ──────────────────────────────────────────────
-  const handleCredentials = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      await api.post('/otp/send-email', { email });
-      setInfo(`A 6-digit OTP has been sent to ${email}`);
-      setStep('otp');
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Failed to send OTP');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ── Step 2: verify OTP then sign in with Firebase ─────────────────────────
-  const handleOTPVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      const { data } = await api.post('/otp/verify', { email, otp });
-      if (!data.success) throw new Error('Invalid OTP');
       await login(email, password);
       router.push('/');
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Verification failed');
+      setError(err.message || 'Invalid email or password');
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Resend ─────────────────────────────────────────────────────────────────
-  const handleResend = async () => {
-    setError('');
-    setOtp('');
-    setLoading(true);
-    try {
-      await api.post('/otp/send-email', { email });
-      setInfo(`OTP resent to ${email}`);
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Failed to resend OTP');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ── Google ─────────────────────────────────────────────────────────────────
   const handleGoogle = async () => {
     setError('');
     setLoading(true);
@@ -131,22 +90,17 @@ export default function Login() {
             <span className="text-3xl font-bold text-red-600">YouTube</span>
           </Link>
           <h2 className={`mt-3 text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            {step === 'credentials' ? 'Sign in to your account' : 'Enter your OTP'}
+            Sign in to your account
           </h2>
           <p className={`mt-1.5 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-            {step === 'credentials' ? (
-              <>Or{' '}
-                <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400">
-                  create a new account
-                </Link>
-              </>
-            ) : (
-              `We sent a 6-digit code to ${email}`
-            )}
+            Or{' '}
+            <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400">
+              create a new account
+            </Link>
           </p>
 
           {/* Region badge */}
-          {step === 'credentials' && locationReady && (
+          {locationReady && (
             <div className="mt-2 flex justify-center">
               <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
                 isSouthIndia
@@ -154,7 +108,7 @@ export default function Login() {
                   : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
               }`}>
                 <FiShield size={11}/>
-                {isSouthIndia ? 'South India — Email OTP' : 'Other region — Email OTP'}
+                {isSouthIndia ? 'South India' : 'Other region'}
               </span>
             </div>
           )}
@@ -168,127 +122,75 @@ export default function Login() {
           </div>
         )}
 
-        {/* ── Info ────────────────────────────────────────────────────────── */}
-        {info && !error && (
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-            <p className="text-sm text-blue-700 dark:text-blue-300">{info}</p>
-          </div>
-        )}
+        {/* ── Google ──────────────────────────────────────────────────────── */}
+        <button
+          onClick={handleGoogle}
+          disabled={loading}
+          className={`w-full flex items-center justify-center gap-3 py-2.5 px-4 border rounded-lg text-sm font-medium transition-colors ${
+            isDark
+              ? 'border-[#3f3f3f] text-white hover:bg-white/5'
+              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+          } disabled:opacity-50`}
+        >
+          <FcGoogle size={20}/>
+          Continue with Google
+        </button>
 
-        {/* ══ STEP 1 — Credentials ══════════════════════════════════════════ */}
-        {step === 'credentials' && (
-          <>
-            <button
-              onClick={handleGoogle}
-              disabled={loading}
-              className={`w-full flex items-center justify-center gap-3 py-2.5 px-4 border rounded-lg text-sm font-medium transition-colors ${
-                isDark
-                  ? 'border-[#3f3f3f] text-white hover:bg-white/5'
-                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-              } disabled:opacity-50`}
-            >
-              <FcGoogle size={20}/>
-              Continue with Google
-            </button>
+        <div className="flex items-center gap-3">
+          <hr className={`flex-1 ${isDark ? 'border-[#3f3f3f]' : 'border-gray-200'}`}/>
+          <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>or sign in with email</span>
+          <hr className={`flex-1 ${isDark ? 'border-[#3f3f3f]' : 'border-gray-200'}`}/>
+        </div>
 
-            <div className="flex items-center gap-3">
-              <hr className={`flex-1 ${isDark ? 'border-[#3f3f3f]' : 'border-gray-200'}`}/>
-              <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>or sign in with email</span>
-              <hr className={`flex-1 ${isDark ? 'border-[#3f3f3f]' : 'border-gray-200'}`}/>
-            </div>
-
-            <form onSubmit={handleCredentials} className="space-y-4">
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Email address
-                </label>
-                <div className="relative">
-                  <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-                  <input type="email" required value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="you@example.com" className={inputCls}/>
-                </div>
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Password
-                </label>
-                <div className="relative">
-                  <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-                  <input type="password" required value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="••••••••" className={inputCls}/>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" className="h-4 w-4 text-blue-600 rounded border-gray-300"/>
-                  <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Remember me</span>
-                </label>
-                <a href="#" className="text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400 font-medium">
-                  Forgot password?
-                </a>
-              </div>
-
-              <button type="submit" disabled={loading}
-                className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                {loading ? 'Sending OTP...' : 'Continue — Send Email OTP'}
-              </button>
-            </form>
-          </>
-        )}
-
-        {/* ══ STEP 2 — OTP entry ════════════════════════════════════════════ */}
-        {step === 'otp' && (
-          <form onSubmit={handleOTPVerify} className="space-y-5">
-            <div className={`rounded-xl p-4 text-center ${isDark ? 'bg-[#2a2a2a]' : 'bg-gray-50'}`}>
-              <div className="flex justify-center mb-2">
-                <FiMail size={28} className="text-blue-500"/>
-              </div>
-              <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Check your email
-              </p>
-              <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Sent a 6-digit code to <strong>{email}</strong>
-              </p>
-            </div>
-
-            <div>
-              <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                Enter 6-digit OTP
-              </label>
+        {/* ── Form ────────────────────────────────────────────────────────── */}
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              Email address
+            </label>
+            <div className="relative">
+              <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
               <input
-                type="text" inputMode="numeric" maxLength={6}
-                value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
-                placeholder="— — — — — —"
-                className={`w-full text-center text-2xl font-bold tracking-[0.5em] py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                  isDark
-                    ? 'bg-[#2a2a2a] border-[#3f3f3f] text-white placeholder-gray-600'
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-300'
-                }`}
+                type="email" required value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className={inputCls}
               />
             </div>
+          </div>
 
-            <button type="submit" disabled={loading || otp.length !== 6}
-              className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-              {loading ? 'Verifying...' : 'Verify & Sign in'}
-            </button>
-
-            <div className="flex items-center justify-between text-sm">
-              <button type="button"
-                onClick={() => { setStep('credentials'); setOtp(''); setError(''); setInfo(''); }}
-                className={`font-medium ${isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}>
-                ← Back
-              </button>
-              <button type="button" onClick={handleResend} disabled={loading}
-                className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 disabled:opacity-50">
-                Resend OTP
-              </button>
+          <div>
+            <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              Password
+            </label>
+            <div className="relative">
+              <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+              <input
+                type="password" required value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className={inputCls}
+              />
             </div>
-          </form>
-        )}
+          </div>
+
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" className="h-4 w-4 text-blue-600 rounded border-gray-300"/>
+              <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Remember me</span>
+            </label>
+            <a href="#" className="text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400 font-medium">
+              Forgot password?
+            </a>
+          </div>
+
+          <button
+            type="submit" disabled={loading}
+            className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {loading ? 'Signing in...' : 'Sign in'}
+          </button>
+        </form>
 
         <p className={`text-xs text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
           By signing in, you agree to our Terms and Privacy Policy.
