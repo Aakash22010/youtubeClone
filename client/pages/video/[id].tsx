@@ -133,7 +133,7 @@ export default function VideoPage() {
           <div className="max-w-full lg:max-w-5xl mx-auto">
 
             {/* ── Player ──────────────────────────────────────────────────── */}
-            <VideoPlayer
+            <VideoPlayer key={video._id}
               video={video}
               onNextVideo={() => {
                 if (relatedVideos.length > 0) {
