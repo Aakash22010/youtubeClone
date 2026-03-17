@@ -2,7 +2,6 @@ import { useRouter } from 'next/router';
 import { useEffect, useRef, useState } from 'react';
 import io, { Socket } from 'socket.io-client';
 import Peer from 'simple-peer';
-import Layout from '../../components/Layout';
 import {
   FiMic, FiMicOff, FiVideo, FiVideoOff, FiMonitor,
   FiPhoneMissed
@@ -276,9 +275,9 @@ const CallRoom = () => {
     router.push('/calls');
   };
 
-  return (
-    <Layout>
-      <div className="flex flex-col h-full bg-[#121212] p-4 text-white rounded-lg gap-4">
+   return (
+    <>
+      <div className="flex flex-col h-[85vh] bg-[#121212] p-4 text-white rounded-lg gap-4">
         {/* Header */}
         <div className="bg-[#1f1f1f] p-4 rounded-xl flex items-center justify-between shadow-md">
           <h2 className="text-xl font-bold flex flex-col">
@@ -382,7 +381,7 @@ const CallRoom = () => {
           </button>
         </div>
       </div>
-    </Layout>
+    </>
   );
 };
 

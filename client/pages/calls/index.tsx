@@ -1,7 +1,6 @@
 import { useRouter } from 'next/router';
 import { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import Layout from '../../components/Layout';
 import { FiVideo, FiUsers } from 'react-icons/fi';
 
 export default function CallsIndex() {
@@ -21,7 +20,7 @@ export default function CallsIndex() {
   };
 
   return (
-    <Layout>
+    <>
       <div className="flex flex-col items-center justify-center min-h-[70vh] px-4 text-center">
         <h1 className="text-4xl font-bold mb-6 flex items-center gap-3">
           <FiVideo className="text-red-600" />
@@ -77,6 +76,6 @@ export default function CallsIndex() {
           </div>
         </div>
       </div>
-    </Layout>
+    </>
   );
 }
