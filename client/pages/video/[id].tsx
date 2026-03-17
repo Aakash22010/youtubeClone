@@ -128,9 +128,9 @@ export default function VideoPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0f0f0f]">
-      <div className="flex">
-        <main className="flex-1 p-2 sm:p-4">
-          <div className="max-w-full lg:max-w-5xl mx-auto">
+      <div className="flex flex-col lg:flex-row gap-0 lg:gap-6 p-2 sm:p-4 max-w-screen-2xl mx-auto">
+        <main className="flex-1 min-w-0">
+          <div className="max-w-full">
 
             {/* ── Player ──────────────────────────────────────────────────── */}
             <VideoPlayer key={video._id}
@@ -288,6 +288,78 @@ export default function VideoPage() {
 
           </div>
         </main>
+
+        {/* ── Related videos sidebar ─────────────────────────────────────── */}
+        <aside className="w-full lg:w-[360px] xl:w-[400px] flex-shrink-0">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3 px-1">
+            Up next
+          </h3>
+          <div className="flex flex-col gap-2">
+            {relatedVideos.slice(0, 15).map((rv) => {
+              const rvUser = typeof rv.userId === 'object' ? rv.userId : null;
+              const formatDur = (s: number) => {
+                if (!s || !isFinite(s)) return '';
+                const m = Math.floor(s / 60);
+                const sec = String(Math.floor(s % 60)).padStart(2, '0');
+                return `${m}:${sec}`;
+              };
+              const formatViews = (n: number) => {
+                if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M views`;
+                if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}K views`;
+                return `${n} views`;
+              };
+              const timeAgo = (dateStr: string) => {
+                const diff = Date.now() - new Date(dateStr).getTime();
+                const days = Math.floor(diff / 86400000);
+                if (days < 1)   return 'Today';
+                if (days < 7)   return `${days}d ago`;
+                if (days < 30)  return `${Math.floor(days / 7)}w ago`;
+                if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+                return `${Math.floor(days / 365)}y ago`;
+              };
+              return (
+                <Link
+                  key={rv._id}
+                  href={`/video/${rv._id}`}
+                  className="flex gap-2 group rounded-xl hover:bg-gray-100 dark:hover:bg-[#272727] p-1.5 transition-colors"
+                >
+                  {/* Thumbnail */}
+                  <div className="relative flex-shrink-0 w-[168px] h-[94px] rounded-lg overflow-hidden bg-gray-200 dark:bg-[#272727]">
+                    <img
+                      src={rv.thumbnailUrl}
+                      alt={rv.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                    />
+                    {rv.duration > 0 && (
+                      <span className="absolute bottom-1 right-1 bg-black/80 text-white text-xs font-medium px-1 py-0.5 rounded">
+                        {formatDur(rv.duration)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0 py-0.5">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2 leading-snug">
+                      {rv.title}
+                    </p>
+                    {rvUser && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
+                        {rvUser.displayName}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      {formatViews(rv.views)} · {timeAgo(rv.createdAt)}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+            {relatedVideos.length === 0 && (
+              <p className="text-sm text-gray-400 px-1">No related videos found.</p>
+            )}
+          </div>
+        </aside>
+
       </div>
 
       {/* Premium modal */}
