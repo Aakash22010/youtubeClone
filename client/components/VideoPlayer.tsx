@@ -417,7 +417,8 @@ export default function VideoPlayer({ video, onNextVideo, onOpenComments }: Vide
         )}
 
         {/* ── Controls bar ─────────────────────────────────────────────────── */}
-        <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/50 to-transparent px-4 pb-2 pt-8 transition-opacity z-20 ${showControls && !limitReached ? 'opacity-100' : 'opacity-0'}`}>
+        <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/50 to-transparent px-2 sm:px-4 pb-1.5 sm:pb-2 pt-6 sm:pt-8 transition-opacity z-20 ${showControls && !limitReached ? 'opacity-100' : 'opacity-0'}`}>
+          {/* Progress bar */}
           <input
             type="range" min="0" max={duration} value={currentTime}
             onChange={handleSeek}
@@ -428,58 +429,63 @@ export default function VideoPlayer({ video, onNextVideo, onOpenComments }: Vide
               [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3
               [&::-moz-range-thumb]:bg-red-600 [&::-moz-range-thumb]:border-0"
           />
-          <div className="flex items-center justify-between text-white mt-1">
-            <div className="flex items-center space-x-4">
-              <button onClick={togglePlay} className="hover:text-gray-300">
-                {playing ? <FaPause size={20}/> : <FaPlay size={20}/>}
+          <div className="flex items-center justify-between text-white mt-1 gap-1">
+            {/* Left controls */}
+            <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+              <button onClick={togglePlay} className="hover:text-gray-300 flex-shrink-0 p-0.5">
+                {playing ? <FaPause size={16}/> : <FaPlay size={16}/>}
               </button>
-              <button onClick={() => { if (videoRef.current) videoRef.current.currentTime -= 10; }} className="hover:text-gray-300">
-                <BsFillSkipStartFill size={22} className="rotate-180"/>
+              <button onClick={() => { if (videoRef.current) videoRef.current.currentTime -= 10; }} className="hover:text-gray-300 flex-shrink-0 hidden xs:block p-0.5">
+                <BsFillSkipStartFill size={18} className="rotate-180"/>
               </button>
-              <button onClick={() => { if (videoRef.current) videoRef.current.currentTime += 10; }} className="hover:text-gray-300">
-                <BsFillSkipEndFill size={22}/>
+              <button onClick={() => { if (videoRef.current) videoRef.current.currentTime += 10; }} className="hover:text-gray-300 flex-shrink-0 hidden xs:block p-0.5">
+                <BsFillSkipEndFill size={18}/>
               </button>
-              <div className="flex items-center space-x-2">
-                <button onClick={toggleMute} className="hover:text-gray-300">
-                  {muted || volume === 0 ? <FaVolumeMute size={18}/> : <FaVolumeUp size={18}/>}
+              {/* Volume — icon always visible, slider hidden on small screens */}
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <button onClick={toggleMute} className="hover:text-gray-300 p-0.5">
+                  {muted || volume === 0 ? <FaVolumeMute size={16}/> : <FaVolumeUp size={16}/>}
                 </button>
                 <input
                   type="range" min="0" max="1" step="0.01" value={muted ? 0 : volume}
                   onChange={handleVolumeChange}
-                  className="w-16 h-1 bg-gray-600 rounded-full appearance-none cursor-pointer"
+                  className="hidden sm:block w-14 h-1 bg-gray-600 rounded-full appearance-none cursor-pointer"
                 />
               </div>
-              <span className="text-sm">{formatTime(currentTime)} / {formatTime(duration)}</span>
+              <span className="text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
+                {formatTime(currentTime)} / {formatTime(duration)}
+              </span>
               {user && planLimit !== Infinity && !limitReached && (
-                <span className={`text-xs font-medium ${remainingSeconds < 60 ? 'text-red-400' : 'text-yellow-400'}`}>
+                <span className={`text-xs font-medium hidden sm:inline flex-shrink-0 ${remainingSeconds < 60 ? 'text-red-400' : 'text-yellow-400'}`}>
                   {remainingSeconds < 60
-                    ? `${Math.ceil(remainingSeconds)}s left overall`
-                    : `${Math.ceil(remainingSeconds / 60)}m left overall`}
+                    ? `${Math.ceil(remainingSeconds)}s left`
+                    : `${Math.ceil(remainingSeconds / 60)}m left`}
                 </span>
               )}
             </div>
-            <div className="flex items-center space-x-4">
+            {/* Right controls */}
+            <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
               <select
                 value={playbackRate}
                 onChange={e => handlePlaybackRate(parseFloat(e.target.value))}
-                className="bg-transparent border border-white/30 rounded text-sm px-1 py-0.5 focus:outline-none"
+                className="bg-transparent border border-white/30 rounded text-xs px-1 py-0.5 focus:outline-none hidden sm:block"
               >
                 {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(rate => (
                   <option key={rate} value={rate} className="bg-black">{rate}x</option>
                 ))}
               </select>
-              <button onClick={() => videoRef.current?.requestPictureInPicture()} className="hover:text-gray-300">
-                <FaClosedCaptioning size={20}/>
+              <button onClick={() => videoRef.current?.requestPictureInPicture()} className="hover:text-gray-300 hidden sm:block p-0.5">
+                <FaClosedCaptioning size={16}/>
               </button>
-              <button onClick={toggleFullscreen} className="hover:text-gray-300">
-                {fullscreen ? <FaCompress size={18}/> : <FaExpand size={18}/>}
+              <button onClick={toggleFullscreen} className="hover:text-gray-300 p-0.5">
+                {fullscreen ? <FaCompress size={16}/> : <FaExpand size={16}/>}
               </button>
             </div>
           </div>
         </div>
 
         {/* ── Gesture guide tooltip (bottom-center, shows on hover) ─────────── */}
-        <div className={`absolute bottom-14 left-1/2 -translate-x-1/2 pointer-events-none z-10 transition-opacity ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+        <div className={`absolute bottom-12 sm:bottom-14 left-1/2 -translate-x-1/2 pointer-events-none z-10 transition-opacity hidden sm:block ${showControls ? 'opacity-100' : 'opacity-0'}`}>
           <div className="flex gap-4 text-xs text-white/50 whitespace-nowrap">
             <span>2× left = -10s</span>
             <span>·</span>

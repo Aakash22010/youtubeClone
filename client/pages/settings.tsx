@@ -9,90 +9,57 @@ import { FiUpload, FiSave, FiX } from 'react-icons/fi';
 export default function Settings() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [displayName, setDisplayName] = useState('');
-  const [description, setDescription] = useState('');
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [bannerFile, setBannerFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+
+  const [displayName,    setDisplayName]    = useState('');
+  const [description,    setDescription]    = useState('');
+  const [avatarFile,     setAvatarFile]     = useState<File | null>(null);
+  const [bannerFile,     setBannerFile]     = useState<File | null>(null);
+  const [avatarPreview,  setAvatarPreview]  = useState<string | null>(null);
+  const [bannerPreview,  setBannerPreview]  = useState<string | null>(null);
+  const [saving,         setSaving]         = useState(false);
+  const [error,          setError]          = useState('');
+  const [success,        setSuccess]        = useState('');
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
-    if (user) {
-      setDisplayName(user.displayName || '');
-      setDescription(user.description || '');
-    }
+    if (!loading && !user) router.push('/login');
+    if (user) { setDisplayName(user.displayName || ''); setDescription(user.description || ''); }
   }, [user, loading, router]);
 
-  const onDropAvatar = useCallback((acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
+  const onDropAvatar = useCallback((files: File[]) => {
+    const file = files[0];
     setAvatarFile(file);
     setAvatarPreview(URL.createObjectURL(file));
   }, []);
 
-  const onDropBanner = useCallback((acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
+  const onDropBanner = useCallback((files: File[]) => {
+    const file = files[0];
     setBannerFile(file);
     setBannerPreview(URL.createObjectURL(file));
   }, []);
 
-  const { getRootProps: getAvatarRoot, getInputProps: getAvatarInput } = useDropzone({
-    onDrop: onDropAvatar,
-    accept: { 'image/*': [] },
-    maxFiles: 1,
-  });
-
-  const { getRootProps: getBannerRoot, getInputProps: getBannerInput } = useDropzone({
-    onDrop: onDropBanner,
-    accept: { 'image/*': [] },
-    maxFiles: 1,
-  });
+  const { getRootProps: getAvatarRoot, getInputProps: getAvatarInput } = useDropzone({ onDrop: onDropAvatar, accept: { 'image/*': [] }, maxFiles: 1 });
+  const { getRootProps: getBannerRoot, getInputProps: getBannerInput } = useDropzone({ onDrop: onDropBanner, accept: { 'image/*': [] }, maxFiles: 1 });
 
   const handleSave = async () => {
     if (!user) return;
-    setSaving(true);
-    setError('');
-    setSuccess('');
-
+    setSaving(true); setError(''); setSuccess('');
     try {
       let avatarUrl = user.photoURL;
       let bannerUrl = user.banner;
 
-      // Upload new avatar if selected
       if (avatarFile) {
-        const formData = new FormData();
-        formData.append('file', avatarFile);
-        const { data } = await api.post<{ url: string }>('/upload/avatar', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        const fd = new FormData(); fd.append('file', avatarFile);
+        const { data } = await api.post<{ url: string }>('/upload/avatar', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
         avatarUrl = data.url;
       }
-
-      // Upload new banner if selected
       if (bannerFile) {
-        const formData = new FormData();
-        formData.append('file', bannerFile);
-        const { data } = await api.post<{ url: string }>('/upload/banner', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        const fd = new FormData(); fd.append('file', bannerFile);
+        const { data } = await api.post<{ url: string }>('/upload/banner', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
         bannerUrl = data.url;
       }
 
-      // Update user profile
-      await api.put(`/users/${user._id}`, {
-        displayName,
-        description,
-        avatarUrl,
-        bannerUrl,
-      });
-
+      await api.put(`/users/${user._id}`, { displayName, description, avatarUrl, bannerUrl });
       setSuccess('Channel updated successfully!');
-      // Optionally refresh user context or just show success
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to update channel');
     } finally {
@@ -100,131 +67,112 @@ export default function Settings() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center">Loading...</div>;
+  if (loading) return (
+    <div className="flex items-center justify-center py-20">
+      <svg className="animate-spin h-8 w-8 text-blue-600" viewBox="0 0 24 24" fill="none">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"/>
+      </svg>
+    </div>
+  );
   if (!user) return null;
 
+  const inputCls = 'w-full px-3 py-2 text-sm border border-gray-300 dark:border-[#3f3f3f] rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-[#2a2a2a] dark:text-white';
+
   return (
-    <div className="max-w-3xl mx-auto p-4 md:p-6">
-      <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Channel Settings</h1>
+    <div className="max-w-3xl mx-auto">
+      <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-gray-900 dark:text-white">Channel Settings</h1>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">{error}</div>
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg text-sm">{error}</div>
       )}
       {success && (
-        <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">{success}</div>
+        <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 rounded-lg text-sm">{success}</div>
       )}
 
-      {/* Banner upload */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Channel Banner</label>
+      {/* ── Banner ────────────────────────────────────────────────────────── */}
+      <div className="mb-5 sm:mb-6">
+        <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Channel Banner</label>
         <div
           {...getBannerRoot()}
-          className="relative h-32 bg-gray-200 dark:bg-[#2a2a2a] rounded-lg overflow-hidden cursor-pointer border-2 border-dashed border-gray-300 dark:border-[#3f3f3f] hover:border-blue-500 transition-colors"
+          className="relative h-24 sm:h-32 bg-gray-200 dark:bg-[#2a2a2a] rounded-xl overflow-hidden cursor-pointer border-2 border-dashed border-gray-300 dark:border-[#3f3f3f] hover:border-blue-500 transition-colors"
         >
-          <input {...getBannerInput()} />
-          {(bannerPreview || user.banner) && (
-            <img
-              src={bannerPreview || user.banner}
-              alt="Banner preview"
-              className="w-full h-full object-cover"
-            />
-          )}
-          {!bannerPreview && !user.banner && (
-            <div className="absolute inset-0 flex items-center justify-center text-gray-500">
-              <FiUpload size={24} />
-              <span className="ml-2">Upload banner (recommended 2048x1152)</span>
+          <input {...getBannerInput()}/>
+          {(bannerPreview || user.banner) ? (
+            <>
+              <img src={bannerPreview || user.banner} alt="Banner" className="w-full h-full object-cover"/>
+              <button
+                onClick={e => { e.stopPropagation(); setBannerFile(null); setBannerPreview(null); }}
+                className="absolute top-2 right-2 bg-black/60 text-white p-1 rounded-full hover:bg-black/80 transition-colors"
+              >
+                <FiX size={16}/>
+              </button>
+            </>
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 gap-1.5">
+              <FiUpload size={20}/>
+              <span className="text-xs sm:text-sm">Upload banner (2048×1152)</span>
             </div>
           )}
-          {(bannerPreview || user.banner) && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setBannerFile(null);
-                setBannerPreview(null);
-              }}
-              className="absolute top-2 right-2 bg-black bg-opacity-50 text-white p-1 rounded-full hover:bg-opacity-70"
-            >
-              <FiX size={20} />
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Avatar upload */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Avatar</label>
-        <div className="flex items-center space-x-4">
+      {/* ── Avatar ────────────────────────────────────────────────────────── */}
+      <div className="mb-5 sm:mb-6">
+        <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Avatar</label>
+        <div className="flex items-center gap-3 sm:gap-4">
           <div
             {...getAvatarRoot()}
-            className="relative w-24 h-24 rounded-full overflow-hidden cursor-pointer border-2 border-dashed border-gray-300 dark:border-[#3f3f3f] hover:border-blue-500 transition-colors bg-gray-100 dark:bg-[#2a2a2a]"
+            className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden cursor-pointer border-2 border-dashed border-gray-300 dark:border-[#3f3f3f] hover:border-blue-500 transition-colors flex-shrink-0"
           >
-            <input {...getAvatarInput()} />
+            <input {...getAvatarInput()}/>
             <img
               src={avatarPreview || getAvatarUrl(user.photoURL, user.displayName)}
-              alt="Avatar preview"
+              alt="Avatar"
               className="w-full h-full object-cover"
             />
-            {!avatarPreview && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 hover:opacity-100 transition-opacity text-white">
-                <FiUpload size={24} />
-              </div>
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 hover:opacity-100 transition-opacity text-white">
+              <FiUpload size={18}/>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Profile photo</p>
+            <p className="text-xs text-gray-400 mt-0.5">Click to upload a new photo</p>
+            {avatarPreview && (
+              <button onClick={() => { setAvatarFile(null); setAvatarPreview(null); }} className="text-xs text-red-500 hover:text-red-600 mt-1">
+                Remove
+              </button>
             )}
           </div>
-          {avatarPreview && (
-            <button
-              onClick={() => {
-                setAvatarFile(null);
-                setAvatarPreview(null);
-              }}
-              className="p-2 bg-red-100 text-red-600 rounded hover:bg-red-200"
-            >
-              Remove
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Display Name */}
+      {/* ── Display Name ──────────────────────────────────────────────────── */}
       <div className="mb-4">
-        <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Display Name
-        </label>
-        <input
-          type="text"
-          id="displayName"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          className="w-full p-2 border border-gray-300 dark:border-[#3f3f3f] rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-[#2a2a2a] dark:text-white"
-        />
+        <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Display Name</label>
+        <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} className={inputCls}/>
       </div>
 
-      {/* Description */}
-      <div className="mb-6">
-        <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          About
-        </label>
-        <textarea
-          id="description"
-          rows={4}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="w-full p-2 border border-gray-300 dark:border-[#3f3f3f] rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-[#2a2a2a] dark:text-white"
-        />
+      {/* ── About ─────────────────────────────────────────────────────────── */}
+      <div className="mb-5 sm:mb-6">
+        <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">About</label>
+        <textarea rows={4} value={description} onChange={e => setDescription(e.target.value)} className={`${inputCls} resize-none`}/>
       </div>
 
-      <div className="flex justify-end space-x-3">
+      {/* ── Actions ───────────────────────────────────────────────────────── */}
+      <div className="flex gap-2 sm:gap-3 justify-end">
         <button
           onClick={() => router.back()}
-          className="px-4 py-2 border border-gray-300 dark:border-[#3f3f3f] rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2a2a2a]"
+          className="px-3 sm:px-4 py-2 border border-gray-300 dark:border-[#3f3f3f] rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2a2a2a] transition-colors"
         >
           Cancel
         </button>
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+          className="flex items-center gap-1.5 px-4 sm:px-5 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors"
         >
-          {saving ? 'Saving...' : <><FiSave className="mr-2" /> Save Changes</>}
+          {saving ? 'Saving...' : <><FiSave size={14}/> Save Changes</>}
         </button>
       </div>
     </div>

@@ -68,7 +68,7 @@ export default function ChannelPage() {
 
           {/* ── Banner ──────────────────────────────────────────────────────── */}
           <div
-            className="w-full h-36 sm:h-52 bg-gradient-to-r from-gray-300 to-gray-400 dark:from-[#1a1a1a] dark:to-[#272727] bg-cover bg-center"
+            className="w-full h-24 sm:h-52 bg-gradient-to-r from-gray-300 to-gray-400 dark:from-[#1a1a1a] dark:to-[#272727] bg-cover bg-center"
             style={channel.banner ? { backgroundImage: `url(${channel.banner})` } : {}}
           />
 
@@ -142,7 +142,7 @@ export default function ChannelPage() {
                     <p className="text-gray-500 text-sm mt-1">This channel hasn't uploaded anything.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 sm:gap-x-4 gap-y-4 sm:gap-y-6">
                     {videos.map(video => (
                       <VideoCard key={video._id} video={video} />
                     ))}

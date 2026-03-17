@@ -3,9 +3,9 @@ import api from '../lib/api';
 import { Video, DlMeta } from '../types';
 
 interface DownloadButtonProps extends DlMeta {
-  video: Video;
+  video:          Video;
   onLimitReached: () => void;
-  onDownloaded: () => void;
+  onDownloaded:   () => void;
 }
 
 const DownloadButton: React.FC<DownloadButtonProps> = ({
@@ -28,7 +28,6 @@ const DownloadButton: React.FC<DownloadButtonProps> = ({
       const { data } = await api.post(`/downloads/${video._id}`);
       if (data.limitReached) { onLimitReached(); return; }
 
-      // Trigger native browser download
       const a    = document.createElement('a');
       a.href     = data.videoUrl;
       a.download = `${data.title}.mp4`;
@@ -52,7 +51,7 @@ const DownloadButton: React.FC<DownloadButtonProps> = ({
       onClick={handleDownload}
       disabled={downloading}
       title={canDownload ? 'Download video' : 'Daily limit reached — upgrade to Premium'}
-      className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full border font-medium transition-all
+      className={`inline-flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border font-medium transition-all whitespace-nowrap flex-shrink-0
         ${done
           ? 'text-green-600 border-green-400 bg-green-50 dark:bg-green-900/20'
           : canDownload
@@ -62,23 +61,30 @@ const DownloadButton: React.FC<DownloadButtonProps> = ({
     >
       {downloading ? (
         <>
-          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+          <svg className="animate-spin h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 100 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"/>
           </svg>
-          Downloading
+          <span className="hidden xs:inline">Downloading</span>
         </>
       ) : done ? (
-        <>✓ Downloaded</>
+        <>
+          <span>✓</span>
+          <span className="hidden xs:inline">Downloaded</span>
+        </>
       ) : canDownload ? (
         <>
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v12m0 0l-4-4m4 4l4-4"/>
           </svg>
-          Download
+          <span className="hidden xs:inline">Download</span>
         </>
       ) : (
-        <>⭐ Premium to download more</>
+        <>
+          <span>⭐</span>
+          <span className="hidden sm:inline">Premium to download more</span>
+          <span className="sm:hidden">Upgrade</span>
+        </>
       )}
     </button>
   );

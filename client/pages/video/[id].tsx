@@ -150,7 +150,7 @@ export default function VideoPage() {
             <div className="mt-3 sm:mt-4">
 
               {/* Title */}
-              <h1 className="text-base sm:text-xl md:text-2xl font-bold leading-snug text-gray-900 dark:text-white">
+              <h1 className="text-sm sm:text-xl md:text-2xl font-bold leading-snug text-gray-900 dark:text-white">
                 {video.title}
               </h1>
 
@@ -183,12 +183,12 @@ export default function VideoPage() {
                 </div>
 
                 {/* Action buttons */}
-                <div className="flex items-center flex-wrap gap-2">
+                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1 -mb-1 flex-nowrap sm:flex-wrap">
 
                   {/* Like */}
                   <button
                     onClick={handleLike}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap flex-shrink-0 ${
                       userLiked
                         ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
                         : "bg-gray-100 dark:bg-[#272727] hover:bg-gray-200 dark:hover:bg-[#3f3f3f] text-gray-700 dark:text-gray-200"
@@ -203,7 +203,7 @@ export default function VideoPage() {
                   {/* Dislike */}
                   <button
                     onClick={handleDislike}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap flex-shrink-0 ${
                       userDisliked
                         ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
                         : "bg-gray-100 dark:bg-[#272727] hover:bg-gray-200 dark:hover:bg-[#3f3f3f] text-gray-700 dark:text-gray-200"
@@ -220,7 +220,7 @@ export default function VideoPage() {
                   {/* Share */}
                   <button
                     onClick={() => navigator.clipboard?.writeText(window.location.href)}
-                    className="flex items-center gap-1.5 bg-gray-100 dark:bg-[#272727] hover:bg-gray-200 dark:hover:bg-[#3f3f3f] text-gray-700 dark:text-gray-200 px-4 py-2 rounded-full text-sm font-medium transition-all"
+                    className="flex items-center gap-1 sm:gap-1.5 bg-gray-100 dark:bg-[#272727] hover:bg-gray-200 dark:hover:bg-[#3f3f3f] text-gray-700 dark:text-gray-200 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap flex-shrink-0"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
@@ -324,7 +324,7 @@ export default function VideoPage() {
                   className="flex gap-2 group rounded-xl hover:bg-gray-100 dark:hover:bg-[#272727] p-1.5 transition-colors"
                 >
                   {/* Thumbnail */}
-                  <div className="relative flex-shrink-0 w-[168px] h-[94px] rounded-lg overflow-hidden bg-gray-200 dark:bg-[#272727]">
+                  <div className="relative flex-shrink-0 w-[120px] h-[68px] sm:w-[168px] sm:h-[94px] rounded-lg overflow-hidden bg-gray-200 dark:bg-[#272727]">
                     <img
                       src={rv.thumbnailUrl}
                       alt={rv.title}

@@ -13,7 +13,7 @@ interface PremiumModalProps {
 
 const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error,   setError]   = useState('');
 
   const handleUpgrade = async () => {
     setLoading(true);
@@ -25,9 +25,9 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSuccess }) => {
       // 2. Load Razorpay SDK if not already present
       if (!window.Razorpay) {
         await new Promise<void>((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-          script.onload = () => resolve();
+          const script   = document.createElement('script');
+          script.src     = 'https://checkout.razorpay.com/v1/checkout.js';
+          script.onload  = () => resolve();
           script.onerror = () => reject(new Error('Razorpay SDK failed to load'));
           document.body.appendChild(script);
         });
@@ -35,26 +35,23 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSuccess }) => {
 
       // 3. Open checkout
       const options = {
-        key: data.keyId,
-        amount: data.amount,
-        currency: data.currency,
-        name: 'YourTube Premium',
+        key:         data.keyId,
+        amount:      data.amount,
+        currency:    data.currency,
+        name:        'YourTube Premium',
         description: 'Unlimited video downloads',
-        order_id: data.orderId,
-        prefill: {
-          contact: '9999999999',
-          email: 'test@example.com',
-        },
+        order_id:    data.orderId,
         handler: async (response: RazorpayVerifyPayload) => {
           // 4. Verify signature on backend
           await api.post('/payments/verify', {
-            razorpay_order_id: response.razorpay_order_id,
+            razorpay_order_id:   response.razorpay_order_id,
             razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature,
+            razorpay_signature:  response.razorpay_signature,
           } satisfies RazorpayVerifyPayload);
           onSuccess();
           onClose();
         },
+        prefill: {},
         theme: { color: '#2563eb' },
       };
 
@@ -69,7 +66,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md p-8 relative">
 
         {/* Close */}

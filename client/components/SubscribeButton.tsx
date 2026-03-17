@@ -3,9 +3,9 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 
 interface SubscribeButtonProps {
-  channelId: string;
+  channelId:               string;
   initialSubscribersCount?: number;
-  className?: string;
+  className?:              string;
 }
 
 const SubscribeButton: React.FC<SubscribeButtonProps> = ({
@@ -13,55 +13,43 @@ const SubscribeButton: React.FC<SubscribeButtonProps> = ({
   initialSubscribersCount = 0,
   className = '',
 }) => {
-  const { user } = useAuth();
-  const [subscribed, setSubscribed] = useState(false);
+  const { user }                            = useAuth();
+  const [subscribed,       setSubscribed]   = useState(false);
   const [subscribersCount, setSubscribersCount] = useState(initialSubscribersCount);
-  const [loading, setLoading] = useState(false);
+  const [loading,          setLoading]      = useState(false);
 
-  // Check if this is the user's own channel
   const isOwnChannel = user?._id === channelId;
 
   useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const { data } = await api.get(`/subscriptions/status/${channelId}`);
+    api.get(`/subscriptions/status/${channelId}`)
+      .then(({ data }) => {
         setSubscribed(data.subscribed);
         setSubscribersCount(data.subscribersCount);
-      } catch (error) {
-        console.error('Failed to fetch subscription status', error);
-      }
-    };
-    fetchStatus();
+      })
+      .catch(console.error);
   }, [channelId]);
 
   const handleSubscribe = async () => {
-    if (!user) {
-      // Redirect to login or show modal
-      return;
-    }
-    if (isOwnChannel) return;
-
+    if (!user || isOwnChannel) return;
     setLoading(true);
     try {
       const { data } = await api.post(`/subscriptions/${channelId}`);
       setSubscribed(data.subscribed);
       setSubscribersCount(data.subscribersCount);
-    } catch (error) {
-      console.error('Subscription toggle failed', error);
+    } catch (err) {
+      console.error('Subscription toggle failed', err);
     } finally {
       setLoading(false);
     }
   };
 
-  if (isOwnChannel) {
-    return null; // Don't show subscribe button on own channel
-  }
+  if (isOwnChannel) return null;
 
   return (
     <button
       onClick={handleSubscribe}
       disabled={loading || !user}
-      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+      className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
         subscribed
           ? 'bg-gray-200 dark:bg-[#272727] text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-[#3f3f3f]'
           : 'bg-red-600 hover:bg-red-700 text-white'
@@ -69,7 +57,7 @@ const SubscribeButton: React.FC<SubscribeButtonProps> = ({
     >
       {loading ? '...' : subscribed ? 'Subscribed' : 'Subscribe'}
       {subscribersCount > 0 && (
-        <span className="ml-1 text-xs opacity-80">{subscribersCount}</span>
+        <span className="ml-1 text-xs opacity-70">{subscribersCount}</span>
       )}
     </button>
   );
