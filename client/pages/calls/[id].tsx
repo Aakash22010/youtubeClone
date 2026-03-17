@@ -116,6 +116,12 @@ const CallRoom = () => {
       initiator: true,
       trickle: false,
       stream,
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:global.stun.twilio.com:3478' }
+        ]
+      }
     });
 
     peer.on('signal', (signal) => {
@@ -134,6 +140,12 @@ const CallRoom = () => {
       initiator: false,
       trickle: false,
       stream,
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:global.stun.twilio.com:3478' }
+        ]
+      }
     });
 
     peer.on('signal', (signal) => {
@@ -329,56 +341,58 @@ const CallRoom = () => {
         </div>
 
         {/* Controls */}
-        <div className="bg-[#1f1f1f] p-4 rounded-xl flex items-center justify-center gap-4 shadow-md mt-auto">
+        <div className="bg-[#1f1f1f] p-4 rounded-xl flex flex-wrap items-center justify-center gap-4 shadow-md mt-auto">
           <button
             onClick={toggleAudio}
-            className={`p-4 rounded-full transition-all ${
+            className={`p-3 md:p-4 rounded-full transition-all ${
               isAudioMuted ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-[#333] hover:bg-[#444] text-white'
             }`}
             title="Toggle Microphone"
           >
-            {isAudioMuted ? <FiMicOff size={24} /> : <FiMic size={24} />}
+            {isAudioMuted ? <FiMicOff className="w-5 h-5 md:w-6 md:h-6" /> : <FiMic className="w-5 h-5 md:w-6 md:h-6" />}
           </button>
           
           <button
             onClick={toggleVideo}
-            className={`p-4 rounded-full transition-all ${
+            className={`p-3 md:p-4 rounded-full transition-all ${
               isVideoDisabled ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-[#333] hover:bg-[#444] text-white'
             }`}
             title="Toggle Camera"
           >
-            {isVideoDisabled ? <FiVideoOff size={24} /> : <FiVideo size={24} />}
+            {isVideoDisabled ? <FiVideoOff className="w-5 h-5 md:w-6 md:h-6" /> : <FiVideo className="w-5 h-5 md:w-6 md:h-6" />}
           </button>
 
           <button
             onClick={toggleScreenShare}
-            className={`p-4 rounded-full transition-all ${
+            className={`p-3 md:p-4 rounded-full transition-all ${
               isScreenSharing ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-[0_0_15px_rgba(37,99,235,0.5)]' : 'bg-[#333] hover:bg-[#444] text-white'
             }`}
             title="Share Screen"
           >
-            <FiMonitor size={24} />
+            <FiMonitor className="w-5 h-5 md:w-6 md:h-6" />
           </button>
 
           <button
             onClick={toggleRecording}
-            className={`p-4 rounded-full transition-all flex items-center gap-2 px-6 ${
+            className={`p-3 md:p-4 rounded-full transition-all flex items-center gap-2 px-4 md:px-6 ${
               isRecording 
                 ? 'bg-transparent border-2 border-red-600 text-red-500 hover:bg-red-600 hover:text-white' 
                 : 'bg-red-600/20 text-red-500 hover:bg-red-600 hover:text-white'
             }`}
           >
-            <BsRecordCircle size={20} className={isRecording ? 'animate-pulse' : ''} />
-            {isRecording ? 'Stop Rec' : 'Record'}
+            <BsRecordCircle className={`w-4 h-4 md:w-5 md:h-5 ${isRecording ? 'animate-pulse' : ''}`} />
+            <span className="text-sm md:text-base">{isRecording ? 'Stop Rec' : 'Record'}</span>
           </button>
 
-          <button
-            onClick={leaveCall}
-            className="p-4 rounded-full bg-red-600 hover:bg-red-700 text-white ml-8 shadow-lg transition-transform hover:scale-105"
-            title="Leave Call"
-          >
-            <FiPhoneMissed size={24} />
-          </button>
+          <div className="w-full sm:w-auto flex justify-center mt-2 sm:mt-0 sm:ml-4">
+            <button
+              onClick={leaveCall}
+              className="p-3 md:p-4 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-lg transition-transform hover:scale-105"
+              title="Leave Call"
+            >
+              <FiPhoneMissed className="w-5 h-5 md:w-6 md:h-6" />
+            </button>
+          </div>
         </div>
       </div>
     </>
