@@ -3,9 +3,20 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
+import http from 'http';
+import { Server as SocketIOServer } from 'socket.io';
 import connectDB from './utils/db';
 
 const app = express();
+const server = http.createServer(app);
+const io = new SocketIOServer(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL,
+    methods: ['GET', 'POST'],
+    credentials: true,
+  }
+});
+
 
 // Connect to MongoDB
 connectDB();
@@ -56,7 +67,43 @@ app.get('/', (req, res) => {
   res.send('YouTube Clone API is running');
 });
 
+// --- Socket.IO WebRTC Signaling ---
+io.on('connection', (socket) => {
+  socket.on('join-room', (roomId: string) => {
+    socket.join(roomId);
+
+    // Get all clients in the room (excluding this new socket since we just joined, wait, actually we did join, so we filter it out)
+    const clients = io.sockets.adapter.rooms.get(roomId);
+    const usersInRoom = clients ? Array.from(clients).filter(id => id !== socket.id) : [];
+    
+    // Notify the joiner of all existing users in the room
+    socket.emit('all-users', usersInRoom);
+  });
+
+  socket.on('sending-signal', (payload) => {
+    io.to(payload.userToSignal).emit('user-joined', { 
+      signal: payload.signal, 
+      callerID: payload.callerID 
+    });
+  });
+
+  socket.on('returning-signal', (payload) => {
+    io.to(payload.callerID).emit('receiving-returned-signal', { 
+      signal: payload.signal, 
+      id: socket.id 
+    });
+  });
+
+  socket.on('disconnecting', () => {
+    socket.rooms.forEach((room) => {
+      if (room !== socket.id) {
+        socket.to(room).emit('user-disconnected', socket.id);
+      }
+    });
+  });
+});
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 export default app;

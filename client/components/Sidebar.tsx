@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { FiHome, FiCompass, FiFilm, FiMusic, FiAward, FiBookOpen, FiMenu, FiX } from 'react-icons/fi';
+import { FiHome, FiCompass, FiFilm, FiMusic, FiAward, FiBookOpen, FiMenu, FiX, FiVideo } from 'react-icons/fi';
 import { MdSubscriptions, MdHistory, MdWatchLater, MdThumbUp } from 'react-icons/md';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 
@@ -81,6 +81,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               href="/liked"
               icon={MdThumbUp}
               label="Liked videos"
+              collapsed={collapsed}
+            />
+            <SidebarItem
+              href="/calls"
+              icon={FiVideo}
+              label="Calls"
               collapsed={collapsed}
             />
             <hr className="my-3 border-gray-200 dark:border-[#272727]" />
@@ -163,6 +169,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               href="/liked"
               icon={MdThumbUp}
               label="Liked videos"
+              collapsed={false}
+            />
+            <SidebarItem
+              href="/calls"
+              icon={FiVideo}
+              label="Calls"
               collapsed={false}
             />
             <hr className="my-3 border-gray-200 dark:border-[#272727]" />
