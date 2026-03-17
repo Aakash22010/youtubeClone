@@ -1,4 +1,5 @@
 import { useRouter } from "next/router";
+import { useRef } from "react";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import api from "../../lib/api";
@@ -24,7 +25,9 @@ export default function VideoPage() {
   const [userLiked,    setUserLiked]    = useState(false);
   const [userDisliked, setUserDisliked] = useState(false);
   const [showDesc,     setShowDesc]     = useState(false);
-  const [showPremium,  setShowPremium]  = useState(false);
+  const [showPremium,    setShowPremium]    = useState(false);
+  const [showComments,  setShowComments]  = useState(true);
+  const commentsRef = useRef<HTMLDivElement>(null);
   const [dlMeta,       setDlMeta]       = useState<DlMeta>({
     isPremium:          false,
     dailyDownloadCount: 0,
@@ -123,7 +126,14 @@ export default function VideoPage() {
           <div className="max-w-full lg:max-w-5xl mx-auto">
 
             {/* ── Player ──────────────────────────────────────────────────── */}
-            <VideoPlayer video={video} />
+            <VideoPlayer
+              video={video}
+              onNextVideo={() => router.back()}
+              onOpenComments={() => {
+                setShowComments(true);
+                setTimeout(() => commentsRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+              }}
+            />
 
             <div className="mt-3 sm:mt-4">
 
@@ -259,8 +269,8 @@ export default function VideoPage() {
               </div>
             </div>
 
-            {/* ── Comments ──────────────────────────────────────────────────── */}
-            <div className="mt-6">
+            {/* ── Comments ─────────────────────────────────────────────────── */}
+            <div ref={commentsRef} className="mt-6">
               <CommentSection videoId={video._id} />
             </div>
 
