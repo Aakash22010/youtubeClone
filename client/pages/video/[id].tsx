@@ -13,7 +13,6 @@ import { getAvatarUrl } from "../../utils/avatar";
 import { Video, DlMeta } from "../../types";
 import SaveToPlaylistButton from "@/components/SaveToPlaylistButton";
 import Head from "next/head";
-import { generateNextSeo } from "next-seo/pages";
 
 export default function VideoPage() {
   const router = useRouter();
@@ -131,26 +130,14 @@ export default function VideoPage() {
   return (
     <>
       <Head>
-        {generateNextSeo({
-          title: video.title,
-          description: video.description || 'Watch this video on YouTube Clone.',
-          openGraph: {
-            title: video.title,
-            description: video.description || 'Watch this video on YouTube Clone.',
-            images: [
-              {
-                url: video.thumbnailUrl,
-                width: 1280,
-                height: 720,
-                alt: video.title,
-              }
-            ],
-            video: {
-              duration: video.duration,
-              releaseDate: video.createdAt,
-            }
-          }
-        })}
+        <title>{video.title} | YouTube Clone</title>
+        <meta name="description" content={video.description || 'Watch this video on YouTube Clone.'} />
+        <meta property="og:title" content={`${video.title} | YouTube Clone`} />
+        <meta property="og:description" content={video.description || 'Watch this video on YouTube Clone.'} />
+        <meta property="og:image" content={video.thumbnailUrl} />
+        <meta property="og:image:width" content="1280" />
+        <meta property="og:image:height" content="720" />
+        <meta property="og:type" content="video.other" />
       </Head>
       <div className="min-h-screen bg-white dark:bg-[#0f0f0f]">
         <div className="flex flex-col lg:flex-row gap-0 lg:gap-6 p-2 sm:p-4 max-w-screen-2xl mx-auto">
