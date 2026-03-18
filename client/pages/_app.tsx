@@ -26,7 +26,7 @@ function MyApp({ Component, pageProps }: AppProps) {
               siteName: 'Aakash Dahiya Portfolio',
               images: [
                 {
-                  url: 'https://youtube-clone-three-weld.vercel.app/og-image.png',
+                  url: 'https://youtube-clone-three-weld.vercel.app/og-image.svg',
                   width: 1200,
                   height: 630,
                   alt: 'Aakash Dahiya - Full-Stack Web Developer',
