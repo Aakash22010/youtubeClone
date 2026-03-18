@@ -2,7 +2,7 @@
 
 A full-stack YouTube clone built with modern technologies. Users can upload, watch, like, comment, and subscribe to channels. Features include a custom video player, dark mode, playlists, watch history, and more.
 
-![YouTube Clone Screenshot](https://via.placeholder.com/800x400.png?text=YouTube+Clone+Screenshot)
+![YouTube Clone Screenshot](https://github.com/Aakash22010/youtubeClone/blob/main/client/public/og-image.png)
 
 ## 🚀 Features
 
