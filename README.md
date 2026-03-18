@@ -19,6 +19,8 @@ A full-stack YouTube clone built with modern technologies. Users can upload, wat
 - **Search** – Search videos and channels.
 - **Dark Mode** – Full theme support.
 - **Responsive Design** – Mobile-first, works on all devices.
+- **VoIP Video Calls** – Real-time P2P video calls using WebRTC.
+- **Screen Share & Recording** – Share screen with system audio and locally record the meeting.
 
 ### ✅ Backend
 - **Authentication** – Firebase Auth with email/password.
@@ -30,6 +32,7 @@ A full-stack YouTube clone built with modern technologies. Users can upload, wat
 - **Users API** – Profile updates (avatar, banner, description).
 - **Watch History** – Track watched videos.
 - **Categories API** – Filter videos by category.
+- **WebRTC Signaling** – Socket.IO integration for VoIP call rooms.
 
 ## 🛠️ Tech Stack
 
@@ -41,12 +44,15 @@ A full-stack YouTube clone built with modern technologies. Users can upload, wat
 - [Axios](https://axios-http.com/) (HTTP client)
 - [React Icons](https://react-icons.github.io/react-icons/)
 - [React Dropzone](https://react-dropzone.js.org/) (file upload)
+- [Socket.io Client](https://socket.io/) (WebRTC Signaling)
+- [Simple-Peer](https://github.com/feross/simple-peer) (WebRTC P2P)
 
 ### Backend
 - [Node.js](https://nodejs.org/) + [Express](https://expressjs.com/)
 - [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) + [Mongoose](https://mongoosejs.com/)
 - [Firebase Admin SDK](https://firebase.google.com/docs/admin/setup)
 - [Cloudinary](https://cloudinary.com/) (media storage)
+- [Socket.io](https://socket.io/) (WebRTC Signaling Server)
 
 ## 📦 Installation
 
