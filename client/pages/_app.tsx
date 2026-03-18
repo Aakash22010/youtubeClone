@@ -18,12 +18,23 @@ function MyApp({ Component, pageProps }: AppProps) {
         <Head>
           {generateDefaultSeo({
             titleTemplate: '%s | YouTube Clone',
-            defaultTitle: 'YouTube Clone',
-            description: "A beautiful full-stack YouTube clone built with Next.js, featuring real-time video calls, screen sharing, and recording.",
+            defaultTitle: 'Aakash Dahiya | Full-Stack Web Developer',
+            description: "Aakash Dahiya - Full-Stack Web Developer. Portfolio showcasing a beautiful full-stack YouTube clone built with Next.js, Node.js, AND MongoDB.",
             openGraph: {
               type: 'website',
               locale: 'en_IE',
-              siteName: 'YouTube Clone',
+              siteName: 'Aakash Dahiya Portfolio',
+              images: [
+                {
+                  url: 'https://youtube-clone-three-weld.vercel.app/og-image.png',
+                  width: 1200,
+                  height: 630,
+                  alt: 'Aakash Dahiya - Full-Stack Web Developer',
+                }
+              ]
+            },
+            twitter: {
+              cardType: 'summary_large_image',
             }
           })}
           <link rel="icon" type="image/svg+xml" href="/logo.svg" />
