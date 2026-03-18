@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import api from '../lib/api';
 import VideoCard from '../components/VideoCard';
 import { Video } from '../types';
+import Head from 'next/head';
+import { generateNextSeo } from 'next-seo/pages';
 
 export default function Home() {
   const [videos,  setVideos]  = useState<Video[]>([]);
@@ -32,10 +34,18 @@ export default function Home() {
   );
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-5">
-      {videos.map(video => (
-        <VideoCard key={video._id} video={video} />
-      ))}
-    </div>
+    <>
+      <Head>
+        {generateNextSeo({
+          title: 'Home',
+          description: 'Watch the best videos, music, and streams on YouTube Clone.',
+        })}
+      </Head>
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-5">
+        {videos.map(video => (
+          <VideoCard key={video._id} video={video} />
+        ))}
+      </div>
+    </>
   );
 }

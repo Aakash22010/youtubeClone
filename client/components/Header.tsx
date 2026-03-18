@@ -36,11 +36,13 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
             <button
               onClick={toggleSidebar}
               className="p-2 hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full transition-colors"
+              aria-label="Toggle Sidebar Menu"
             >
               <FiMenu size={24} className="text-gray-700 dark:text-gray-300" />
             </button>
           )}
-          <Link href="/" className="text-xl md:text-2xl font-bold text-red-600 hover:text-red-700 transition-colors whitespace-nowrap">
+          <Link href="/" className="flex items-center gap-1.5 text-xl md:text-2xl font-bold dark:text-white transition-colors whitespace-nowrap tracking-tighter">
+            <img src="/logo.svg" alt="YouTube Logo" className="w-8 md:w-10 h-auto" />
             YouTube
           </Link>
         </div>
@@ -59,6 +61,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
               <button
                 type="submit"
                 className="px-4 md:px-6 bg-gray-100 dark:bg-[#272727] border border-l-0 border-gray-300 dark:border-[#3f3f3f] rounded-r-full hover:bg-gray-200 dark:hover:bg-[#3f3f3f] transition-colors"
+                aria-label="Submit Search"
               >
                 <FiSearch className="text-gray-600 dark:text-gray-300" size={20} />
               </button>
@@ -71,6 +74,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
           <button
             onClick={() => setShowMobileSearch(true)}
             className="p-2 hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full transition-colors"
+            aria-label="Open Mobile Search"
           >
             <FiSearch size={22} className="text-gray-700 dark:text-gray-300" />
           </button>
@@ -84,12 +88,14 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                 onClick={() => setShowUploadModal(true)}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full transition-colors"
                 title="Upload"
+                aria-label="Upload Video"
               >
                 <FiUpload size={22} className="text-gray-700 dark:text-gray-300" />
               </button>
               <button
                 className="p-2 hover:bg-gray-100 dark:hover:bg-[#272727] rounded-full transition-colors"
                 title="Notifications"
+                aria-label="Notifications"
               >
                 <FiBell size={22} className="text-gray-700 dark:text-gray-300" />
               </button>
@@ -99,6 +105,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   className="flex items-center space-x-2 focus:outline-none"
+                  aria-label="User Profile Menu"
                 >
                   <img
                     src={getAvatarUrl(user.photoURL, user.displayName)}
@@ -177,6 +184,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
             <button
               onClick={() => router.push('/login')}
               className="flex items-center space-x-1 md:space-x-2 border border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400 px-3 md:px-4 py-1.5 md:py-2 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-sm"
+              aria-label="Sign In"
             >
               <FiUser size={18} />
               <span className="hidden sm:inline">Sign In</span>
@@ -189,7 +197,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
       {isMobile && showMobileSearch && (
         <div className="fixed inset-0 z-50 bg-white dark:bg-[#0f0f0f] p-4">
           <div className="flex items-center space-x-2">
-            <button onClick={() => setShowMobileSearch(false)} className="p-2">
+            <button onClick={() => setShowMobileSearch(false)} className="p-2" aria-label="Close Mobile Search">
               <FiArrowLeft size={24} />
             </button>
             <form onSubmit={handleSearch} className="flex-1">

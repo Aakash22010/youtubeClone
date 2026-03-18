@@ -12,6 +12,8 @@ import { useAuth } from "../../contexts/AuthContext";
 import { getAvatarUrl } from "../../utils/avatar";
 import { Video, DlMeta } from "../../types";
 import SaveToPlaylistButton from "@/components/SaveToPlaylistButton";
+import Head from "next/head";
+import { generateNextSeo } from "next-seo/pages";
 
 export default function VideoPage() {
   const router = useRouter();
@@ -127,8 +129,31 @@ export default function VideoPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#0f0f0f]">
-      <div className="flex flex-col lg:flex-row gap-0 lg:gap-6 p-2 sm:p-4 max-w-screen-2xl mx-auto">
+    <>
+      <Head>
+        {generateNextSeo({
+          title: video.title,
+          description: video.description || 'Watch this video on YouTube Clone.',
+          openGraph: {
+            title: video.title,
+            description: video.description || 'Watch this video on YouTube Clone.',
+            images: [
+              {
+                url: video.thumbnailUrl,
+                width: 1280,
+                height: 720,
+                alt: video.title,
+              }
+            ],
+            video: {
+              duration: video.duration,
+              releaseDate: video.createdAt,
+            }
+          }
+        })}
+      </Head>
+      <div className="min-h-screen bg-white dark:bg-[#0f0f0f]">
+        <div className="flex flex-col lg:flex-row gap-0 lg:gap-6 p-2 sm:p-4 max-w-screen-2xl mx-auto">
         <main className="flex-1 min-w-0">
           <div className="max-w-full">
 
@@ -368,7 +393,8 @@ export default function VideoPage() {
           onClose={() => setShowPremium(false)}
           onSuccess={() => setDlMeta(prev => ({ ...prev, isPremium: true }))}
         />
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }

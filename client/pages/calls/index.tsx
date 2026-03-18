@@ -2,6 +2,8 @@ import { useRouter } from 'next/router';
 import { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { FiVideo, FiUsers } from 'react-icons/fi';
+import Head from 'next/head';
+import { generateNextSeo } from 'next-seo/pages';
 
 export default function CallsIndex() {
   const router = useRouter();
@@ -21,6 +23,12 @@ export default function CallsIndex() {
 
   return (
     <>
+      <Head>
+        {generateNextSeo({
+          title: 'VoIP Video Calls',
+          description: 'Start or join a real-time secure video call with your friends on YouTube Clone.',
+        })}
+      </Head>
       <div className="flex flex-col items-center justify-center min-h-[70vh] px-4 text-center">
         <h1 className="text-4xl font-bold mb-6 flex items-center gap-3">
           <FiVideo className="text-red-600" />

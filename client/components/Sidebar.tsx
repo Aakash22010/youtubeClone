@@ -124,7 +124,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       <aside className="fixed left-0 top-0 h-full w-64 bg-white dark:bg-[#0f0f0f] z-50 overflow-y-auto border-r border-gray-200 dark:border-[#272727] shadow-xl">
         <div className="py-4">
           <div className="flex justify-between items-center px-4 mb-4">
-            <Link href="/" className="text-xl font-bold text-red-600">
+            <Link href="/" className="flex items-center gap-1.5 text-xl font-bold dark:text-white transition-colors tracking-tighter">
+              <img src="/logo.svg" alt="YouTube Logo" className="w-8 h-auto" />
               YouTube
             </Link>
             <button onClick={onClose} className="p-2">
