@@ -2,7 +2,7 @@ import { Response } from 'express';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { AuthRequest } from '../middleware/auth';
-import User from '../models/User';
+import { one } from '../utils/db';
 import { sendPlanInvoiceEmail } from '../services/emailService';
 
 const PREMIUM_AMOUNT_PAISE = 19900; // ₹199
@@ -80,14 +80,11 @@ export const verifyPayment = async (req: AuthRequest, res: Response) => {
     const premiumExpiry = new Date(now);
     premiumExpiry.setMonth(premiumExpiry.getMonth() + 1);
 
-    const user = await User.findByIdAndUpdate(
-      req.user!._id,
-      {
-        isPremium:         true,
-        premiumSince:      now,
-        razorpayPaymentId: razorpay_payment_id,
-      },
-      { new: true }
+    const user = await one<{ email: string; display_name: string; is_premium: boolean }>(
+      `update users set is_premium = true, premium_since = $2, razorpay_payment_id = $3
+        where id = $1
+        returning email, display_name, is_premium`,
+      [req.user!._id, now, razorpay_payment_id],
     );
 
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -95,7 +92,7 @@ export const verifyPayment = async (req: AuthRequest, res: Response) => {
     // Send invoice email (non-blocking)
     sendPlanInvoiceEmail({
       toEmail:     user.email,
-      displayName: user.displayName,
+      displayName: user.display_name,
       plan:        'Premium',
       amount:      199,
       paymentId:   razorpay_payment_id,
@@ -103,7 +100,7 @@ export const verifyPayment = async (req: AuthRequest, res: Response) => {
       planTo:      premiumExpiry,
     }).catch(err => console.error('Premium invoice email failed:', err.message));
 
-    res.json({ success: true, isPremium: user.isPremium });
+    res.json({ success: true, isPremium: user.is_premium });
   } catch (error) {
     console.error('verifyPayment error (full):', JSON.stringify(error, null, 2));
     res.status(500).json({ error: parseError(error) });

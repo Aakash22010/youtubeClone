@@ -1,72 +1,72 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { auth } from '../lib/firebase';
-import {
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
-  signOut,
-  User as FirebaseUser,
-} from 'firebase/auth';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import api from '../lib/api';
+import { clearToken, getToken, setToken } from '../lib/authToken';
 import { User } from '../types';
 
 interface AuthContextType {
-  user:        User | null;
-  loading:     boolean;
-  login:       (email: string, password: string) => Promise<void>;
-  signup:      (email: string, password: string) => Promise<void>;
-  googleLogin: () => Promise<void>;   // ← NEW
-  logout:      () => Promise<void>;
+  user: User | null;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string, displayName?: string) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const googleProvider = new GoogleAuthProvider();
+interface SessionResponse {
+  token: string;
+  user: User;
+}
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user,    setUser]    = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // On first load, a stored token is confirmed with the server rather than
+  // trusted: it may have expired, or the account may be gone.
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-      if (firebaseUser) {
-        const token = await firebaseUser.getIdToken();
-        try {
-          const res = await api.post<{ user: User }>('/auth/login', { token });
-          setUser(res.data.user);
-        } catch (error) {
-          console.error('Auth sync failed', error);
-          setUser(null);
-        }
-      } else {
-        setUser(null);
-      }
+    if (!getToken()) {
       setLoading(false);
-    });
-    return unsubscribe;
+      return;
+    }
+    api
+      .get<{ user: User }>('/auth/me')
+      .then((res) => setUser(res.data.user))
+      .catch(() => {
+        clearToken();
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const startSession = useCallback((data: SessionResponse) => {
+    setToken(data.token);
+    setUser(data.user);
   }, []);
 
   const login = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    const res = await api.post<SessionResponse>('/auth/login', { email, password });
+    startSession(res.data);
   };
 
-  const signup = async (email: string, password: string) => {
-    await createUserWithEmailAndPassword(auth, email, password);
+  const signup = async (email: string, password: string, displayName?: string) => {
+    const res = await api.post<SessionResponse>('/auth/signup', { email, password, displayName });
+    startSession(res.data);
   };
 
-  const googleLogin = async () => {
-    await signInWithPopup(auth, googleProvider);
-    // onAuthStateChanged above will fire automatically and sync the user to your backend
+  const loginWithGoogle = async (credential: string) => {
+    const res = await api.post<SessionResponse>('/auth/google', { credential });
+    startSession(res.data);
   };
 
-  const logout = async () => {
-    await signOut(auth);
+  const logout = () => {
+    clearToken();
+    setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, googleLogin, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, loginWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );

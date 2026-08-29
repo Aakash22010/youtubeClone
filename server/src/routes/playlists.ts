@@ -17,12 +17,13 @@ const router = express.Router();
 router.use(authMiddleware);
 
 router.get('/', getUserPlaylists);
+// Must precede '/:id', or Express matches the literal path as an id.
+router.get('/watch-later', getWatchLater);
 router.get('/:id', getPlaylist);
 router.post('/', createPlaylist);
 router.put('/:id', updatePlaylist);
 router.delete('/:id', deletePlaylist);
 router.post('/:id/videos', addVideoToPlaylist);
 router.delete('/:id/videos/:videoId', removeVideoFromPlaylist);
-router.get('/watch-later', getWatchLater);
 
 export default router;

@@ -1,27 +1,37 @@
 import { Request, Response } from 'express';
-import Video from '../models/Video';
-import { AuthRequest } from '../middleware/auth';
-import cloudinary from '../utils/cloudinary';
 import { UploadApiResponse } from 'cloudinary';
+import { AuthRequest } from '../middleware/auth';
 import { OptionalAuthRequest } from '../middleware/optionalAuth';
-import AnonymousView from '../models/AnonymousView';
-import User from '../models/User';
-
+import cloudinary from '../utils/cloudinary';
+import { doc, one, q } from '../utils/db';
+import { toggleReaction } from '../db/reactions';
+import { isUuid, VIDEO_FIELDS, VIDEO_FROM } from '../db/videos';
 
 // @desc    Get all videos
 // @route   GET /api/videos
 export const getVideos = async (req: Request, res: Response) => {
   try {
     const { userId, category } = req.query;
-    const filter: any = {};
-    if (userId) filter.userId = userId;
-    if (category) filter.category = category;
+    const where: string[] = [];
+    const params: unknown[] = [];
 
-    const videos = await Video.find(filter)
-      .populate('userId', 'displayName photoURL')
-      .sort('-createdAt')
-      .limit(50);
-    res.json(videos);
+    if (userId) {
+      if (!isUuid(userId)) return res.json([]);
+      params.push(userId);
+      where.push(`v.user_id = $${params.length}`);
+    }
+    if (category) {
+      params.push(category);
+      where.push(`v.category = $${params.length}`);
+    }
+
+    const { rows } = await q(
+      `select ${VIDEO_FIELDS} ${VIDEO_FROM}
+       ${where.length ? `where ${where.join(' and ')}` : ''}
+       order by v.created_at desc limit 50`,
+      params,
+    );
+    res.json(doc(rows));
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -32,19 +42,17 @@ export const getVideos = async (req: Request, res: Response) => {
 export const getLikedVideos = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?._id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
+    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
 
-    console.log('Fetching liked videos for user:', userId); // Add log
-
-    const videos = await Video.find({ likes: userId })
-      .populate('userId', 'displayName photoURL')
-      .sort('-updatedAt');
-
-    res.json(videos);
+    const { rows } = await q(
+      `select ${VIDEO_FIELDS} ${VIDEO_FROM}
+         join video_reactions lr on lr.video_id = v.id and lr.user_id = $1 and lr.kind = 1
+        order by lr.created_at desc`,
+      [userId],
+    );
+    res.json(doc(rows));
   } catch (error) {
-    console.error('Error in getLikedVideos:', error); // Full error log
+    console.error('Error in getLikedVideos:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 };
@@ -54,29 +62,28 @@ export const getLikedVideos = async (req: AuthRequest, res: Response) => {
 export const getSubscribedVideos = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?._id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
+    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
 
-    // Get the list of channels the user subscribes to
-    const user = await User.findById(userId).select('subscribedTo');
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const { rows } = await q(
+      `select ${VIDEO_FIELDS} ${VIDEO_FROM}
+        where v.user_id in (select channel_id from subscriptions where subscriber_id = $1)
+        order by v.created_at desc limit 100`,
+      [userId],
+    );
+    res.json(doc(rows));
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+};
 
-    const subscribedChannelIds = user.subscribedTo;
-
-    if (subscribedChannelIds.length === 0) {
-      return res.json([]);
-    }
-
-    // Find videos from those channels, populate user info, sort by newest
-    const videos = await Video.find({ userId: { $in: subscribedChannelIds } })
-      .populate('userId', 'displayName photoURL')
-      .sort('-createdAt')
-      .limit(100);
-
-    res.json(videos);
+// @desc    Get trending videos (most viewed)
+// @route   GET /api/videos/trending
+export const getTrendingVideos = async (_req: Request, res: Response) => {
+  try {
+    const { rows } = await q(
+      `select ${VIDEO_FIELDS} ${VIDEO_FROM} order by v.views desc limit 50`,
+    );
+    res.json(doc(rows));
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -86,55 +93,42 @@ export const getSubscribedVideos = async (req: AuthRequest, res: Response) => {
 // @route   GET /api/videos/:id
 export const getVideo = async (req: OptionalAuthRequest, res: Response) => {
   try {
-    const video = await Video.findById(req.params.id);
-    if (!video) return res.status(404).json({ error: 'Video not found' });
+    const { id } = req.params;
+    if (!isUuid(id)) return res.status(404).json({ error: 'Video not found' });
 
-    const user = req.user;
-    const anonymousId = req.anonymousId;
-    let shouldIncrement = false;
+    const exists = await one('select 1 from videos where id = $1', [id]);
+    if (!exists) return res.status(404).json({ error: 'Video not found' });
 
-    if (user) {
-      // Authenticated user: check if already viewed
-      if (!video.viewedBy.includes(user._id)) {
-        video.viewedBy.push(user._id);
-        shouldIncrement = true;
-      }
-    } else if (anonymousId) {
-      // Anonymous user: check if this anonymous ID has viewed recently
-      const existingView = await AnonymousView.findOne({
-        videoId: video._id,
-        anonymousId,
-      });
-      if (!existingView) {
-        await AnonymousView.create({ videoId: video._id, anonymousId });
-        shouldIncrement = true;
-      }
-    } else {
-      // No identification – do not count view (or count once per IP if you prefer)
-      // We rely on frontend to always send an anonymous ID.
+    let counted = null;
+    if (req.user) {
+      // One view per signed-in user, ever — the old viewedBy array.
+      counted = await one(
+        `insert into video_views (video_id, user_id) values ($1, $2)
+         on conflict do nothing returning 1`,
+        [id, req.user._id],
+      );
+    } else if (req.anonymousId) {
+      // One view per anonymous id per 24h. Mongo did this with a TTL index; here
+      // the upsert refreshes a row only once it is old enough, and returns a row
+      // only when it actually inserted or refreshed one.
+      counted = await one(
+        `insert into anonymous_views (video_id, anonymous_id) values ($1, $2)
+         on conflict (video_id, anonymous_id) do update set created_at = now()
+              where anonymous_views.created_at < now() - interval '24 hours'
+         returning 1`,
+        [id, req.anonymousId],
+      );
     }
 
-    if (shouldIncrement) {
-      video.views += 1;
-    }
+    if (counted) await q('update videos set views = views + 1 where id = $1', [id]);
 
-    await video.save();
-    await video.populate('userId', 'displayName photoURL subscribers');
-    res.json(video);
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-};
-
-// @desc    Get trending videos (most viewed)
-// @route   GET /api/videos/trending
-export const getTrendingVideos = async (req: Request, res: Response) => {
-  try {
-    const videos = await Video.find()
-      .populate('userId', 'displayName photoURL')
-      .sort('-views') // most viewed first
-      .limit(50);
-    res.json(videos);
+    const video = await one(
+      `select ${VIDEO_FIELDS},
+              (select count(*) from subscriptions s where s.channel_id = u.id) as subscribers_count
+         ${VIDEO_FROM} where v.id = $1`,
+      [id],
+    );
+    res.json(doc(video));
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -145,22 +139,18 @@ export const getTrendingVideos = async (req: Request, res: Response) => {
 export const createVideo = async (req: AuthRequest, res: Response) => {
   try {
     const { title, description, thumbnailUrl, videoUrl, duration, category } = req.body;
-    
     if (!title || !videoUrl || !category) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const video = await Video.create({
-      title,
-      description: description || '',
-      thumbnailUrl: thumbnailUrl || '',
-      videoUrl,
-      duration: duration || 0,
-      category,
-      userId: req.user!._id,
-    });
+    const created = await one(
+      `insert into videos (title, description, thumbnail_url, video_url, duration, category, user_id)
+            values ($1, $2, $3, $4, $5, $6, $7) returning id`,
+      [title, description || '', thumbnailUrl || '', videoUrl, Number(duration) || 0, category, req.user!._id],
+    );
 
-    res.status(201).json(video);
+    const video = await one(`select ${VIDEO_FIELDS} ${VIDEO_FROM} where v.id = $1`, [created!.id]);
+    res.status(201).json(doc(video));
   } catch (error) {
     console.error('Error creating video:', error);
     res.status(500).json({ error: 'Failed to save video metadata' });
@@ -171,17 +161,12 @@ export const createVideo = async (req: AuthRequest, res: Response) => {
 // @route   POST /api/videos/:id/like
 export const likeVideo = async (req: AuthRequest, res: Response) => {
   try {
-    const video = await Video.findById(req.params.id);
-    if (!video) return res.status(404).json({ error: 'Video not found' });
-    const userId = req.user!._id;
-    if (video.likes.some(id => id.toString() === userId.toString())) {
-      video.likes = video.likes.filter(id => id.toString() !== userId.toString());
-    } else {
-      video.likes.push(userId);
-      video.dislikes = video.dislikes.filter(id => id.toString() !== userId.toString());
+    const { id } = req.params;
+    if (!isUuid(id)) return res.status(404).json({ error: 'Video not found' });
+    if (!(await one('select 1 from videos where id = $1', [id]))) {
+      return res.status(404).json({ error: 'Video not found' });
     }
-    await video.save();
-    res.json({ likes: video.likes.length, dislikes: video.dislikes.length });
+    res.json(await toggleReaction('video', id, req.user!._id, 1));
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -191,17 +176,12 @@ export const likeVideo = async (req: AuthRequest, res: Response) => {
 // @route   POST /api/videos/:id/dislike
 export const dislikeVideo = async (req: AuthRequest, res: Response) => {
   try {
-    const video = await Video.findById(req.params.id);
-    if (!video) return res.status(404).json({ error: 'Video not found' });
-    const userId = req.user!._id;
-    if (video.dislikes.some(id => id.toString() === userId.toString())) {
-      video.dislikes = video.dislikes.filter(id => id.toString() !== userId.toString());
-    } else {
-      video.dislikes.push(userId);
-      video.likes = video.likes.filter(id => id.toString() !== userId.toString()); // remove like if present
+    const { id } = req.params;
+    if (!isUuid(id)) return res.status(404).json({ error: 'Video not found' });
+    if (!(await one('select 1 from videos where id = $1', [id]))) {
+      return res.status(404).json({ error: 'Video not found' });
     }
-    await video.save();
-    res.json({ likes: video.likes.length, dislikes: video.dislikes.length });
+    res.json(await toggleReaction('video', id, req.user!._id, -1));
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -211,28 +191,17 @@ export const dislikeVideo = async (req: AuthRequest, res: Response) => {
 // @route   POST /api/upload/video
 export const uploadVideo = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No video file uploaded' });
-    }
+    if (!req.file) return res.status(400).json({ error: 'No video file uploaded' });
 
     const result: UploadApiResponse = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
-        { 
-          resource_type: 'video', 
-          folder: 'youtube-clone/videos',
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result!);
-        }
+        { resource_type: 'video', folder: 'youtube-clone/videos' },
+        (error, result) => (error ? reject(error) : resolve(result!)),
       );
       uploadStream.end(req.file!.buffer);
     });
 
-    res.json({ 
-      url: result.secure_url, 
-      duration: Math.round(result.duration) 
-    });
+    res.json({ url: result.secure_url, duration: Math.round(result.duration) });
   } catch (error) {
     console.error('Video upload error:', error);
     res.status(500).json({ error: 'Failed to upload video' });
@@ -243,17 +212,12 @@ export const uploadVideo = async (req: AuthRequest, res: Response) => {
 // @route   POST /api/upload/thumbnail
 export const uploadThumbnail = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No thumbnail file uploaded' });
-    }
+    if (!req.file) return res.status(400).json({ error: 'No thumbnail file uploaded' });
 
     const result: UploadApiResponse = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         { folder: 'youtube-clone/thumbnails' },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result!);
-        }
+        (error, result) => (error ? reject(error) : resolve(result!)),
       );
       uploadStream.end(req.file!.buffer);
     });

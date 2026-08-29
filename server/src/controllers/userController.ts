@@ -1,20 +1,27 @@
 import { Request, Response } from 'express';
 import cloudinary from '../utils/cloudinary';
 import { AuthRequest } from '../middleware/auth';
-import User from '../models/User';
-import Video from '../models/Video';
+import { doc, one, q } from '../utils/db';
+import { USER_COLUMNS } from '../db/users';
+import { isUuid, userBrief, VIDEO_FIELDS, VIDEO_FROM } from '../db/videos';
 
 // @desc    Get user by ID
 // @route   GET /api/users/:id
 export const getUserById = async (req: Request, res: Response) => {
   try {
-    const user = await User.findById(req.params.id)
-      .select('-firebaseUid') // exclude firebaseUid from response
-      .populate('subscribers', 'displayName photoURL');
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    res.json(user);
+    const { id } = req.params;
+    if (!isUuid(id)) return res.status(404).json({ error: 'User not found' });
+
+    const user = await one(
+      `select ${USER_COLUMNS},
+              coalesce((select json_agg(${userBrief('s')})
+                          from subscriptions sub join users s on s.id = sub.subscriber_id
+                         where sub.channel_id = u.id), '[]'::json) as subscribers
+         from users u where u.id = $1`,
+      [id],
+    );
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(doc(user));
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -24,10 +31,14 @@ export const getUserById = async (req: Request, res: Response) => {
 // @route   GET /api/users/:id/videos
 export const getUserVideos = async (req: Request, res: Response) => {
   try {
-    const videos = await Video.find({ userId: req.params.id })
-      .populate('userId', 'displayName photoURL')
-      .sort('-createdAt');
-    res.json(videos);
+    const { id } = req.params;
+    if (!isUuid(id)) return res.json([]);
+
+    const { rows } = await q(
+      `select ${VIDEO_FIELDS} ${VIDEO_FROM} where v.user_id = $1 order by v.created_at desc`,
+      [id],
+    );
+    res.json(doc(rows));
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -38,85 +49,75 @@ export const getUserVideos = async (req: Request, res: Response) => {
 export const getSubscribedChannels = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?._id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
+    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
 
-    const user = await User.findById(userId).populate('subscribedTo', 'displayName photoURL description');
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json(user.subscribedTo);
+    const { rows } = await q(
+      `select c.id, c.display_name, c.photo_url, c.description
+         from subscriptions s join users c on c.id = s.channel_id
+        where s.subscriber_id = $1
+        order by s.created_at desc`,
+      [userId],
+    );
+    res.json(doc(rows));
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
 };
 
-// @desc    Update user profile (optional)
+// @desc    Update user profile
 // @route   PUT /api/users/:id
 export const updateUser = async (req: AuthRequest, res: Response) => {
   try {
+    const { id } = req.params;
+    if (!isUuid(id)) return res.status(404).json({ error: 'User not found' });
+    if (id !== req.user!._id) return res.status(403).json({ error: 'Not authorized' });
+
     const { displayName, description, avatarUrl, bannerUrl } = req.body;
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // Only allow user to update their own profile
-    if (user._id.toString() !== req.user!._id.toString()) {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
+    // coalesce leaves a column alone when its parameter is null, so one statement
+    // covers every combination of supplied fields.
+    const updated = await one(
+      `update users
+          set display_name = coalesce($2, display_name),
+              description  = coalesce($3, description),
+              photo_url    = coalesce($4, photo_url),
+              banner       = coalesce($5, banner)
+        where id = $1
+        returning id`,
+      [
+        id,
+        displayName || null,
+        description === undefined ? null : description,
+        avatarUrl || null,
+        bannerUrl || null,
+      ],
+    );
+    if (!updated) return res.status(404).json({ error: 'User not found' });
 
-    if (displayName) user.displayName = displayName;
-    if (description !== undefined) user.description = description;
-    if (avatarUrl) user.photoURL = avatarUrl;
-    if (bannerUrl) user.banner = bannerUrl;
-
-    await user.save();
-    res.json(user);
+    const user = await one(`select ${USER_COLUMNS} from users u where u.id = $1`, [id]);
+    res.json(doc(user));
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
 };
-export const uploadAvatar = async (req: AuthRequest, res: Response) => {
+
+/** Both image uploads differ only by folder. */
+const uploadTo = (folder: string) => async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-    const result = await new Promise((resolve, reject) => {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: 'youtube-clone/avatars' },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
+        { folder },
+        (error, result) => (error ? reject(error) : resolve(result as { secure_url: string })),
       );
       uploadStream.end(req.file!.buffer);
     });
-    res.json({ url: (result as any).secure_url });
+    res.json({ url: result.secure_url });
   } catch (error) {
-    console.error('Avatar upload error:', error);
-    res.status(500).json({ error: 'Failed to upload avatar' });
-  }
-};
-export const uploadBanner = async (req: AuthRequest, res: Response) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-    const result = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: 'youtube-clone/banners' },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
-      uploadStream.end(req.file!.buffer);
-    });
-    res.json({ url: (result as any).secure_url });
-  } catch (error) {
-    console.error('Banner upload error:', error);
-    res.status(500).json({ error: 'Failed to upload banner' });
+    console.error(`Upload to ${folder} failed:`, error);
+    res.status(500).json({ error: 'Failed to upload image' });
   }
 };
 
+export const uploadAvatar = uploadTo('youtube-clone/avatars');
+export const uploadBanner = uploadTo('youtube-clone/banners');

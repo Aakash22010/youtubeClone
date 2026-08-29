@@ -31,7 +31,6 @@ export const CUMULATIVE_PLAN_LIMITS: Record<Plan, number> = {
 
 export interface User {
   _id: string;
-  firebaseUid: string;
   email: string;
   displayName: string;
   photoURL: string;

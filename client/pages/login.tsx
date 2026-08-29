@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 import { useTheme } from '../contexts/ThemeContext';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { FiMail, FiLock, FiAlertCircle, FiShield, FiSun, FiMoon } from 'react-icons/fi';
-import { FcGoogle } from 'react-icons/fc';
 import { detectLocationTheme } from '../utils/locationTheme';
 
 export default function Login() {
-  const { login, googleLogin } = useAuth();
+  const { login } = useAuth();
   const { theme, setTheme }    = useTheme();
   const router                 = useRouter();
 
@@ -36,24 +36,12 @@ export default function Login() {
       await login(email, password);
       router.push('/');
     } catch (err: any) {
-      setError(err.message || 'Invalid email or password');
+      setError(err?.response?.data?.error || 'Invalid email or password');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogle = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      await googleLogin();
-      router.push('/');
-    } catch (err: any) {
-      setError(err.message || 'Google sign-in failed');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
   const isDark      = theme === 'dark';
@@ -123,18 +111,10 @@ export default function Login() {
         )}
 
         {/* ── Google ──────────────────────────────────────────────────────── */}
-        <button
-          onClick={handleGoogle}
-          disabled={loading}
-          className={`w-full flex items-center justify-center gap-3 py-2.5 px-4 border rounded-lg text-sm font-medium transition-colors ${
-            isDark
-              ? 'border-[#3f3f3f] text-white hover:bg-white/5'
-              : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-          } disabled:opacity-50`}
-        >
-          <FcGoogle size={20}/>
-          Continue with Google
-        </button>
+        <GoogleSignInButton
+          onSuccess={() => router.push('/')}
+          onError={(message) => setError(message)}
+        />
 
         <div className="flex items-center gap-3">
           <hr className={`flex-1 ${isDark ? 'border-[#3f3f3f]' : 'border-gray-200'}`}/>

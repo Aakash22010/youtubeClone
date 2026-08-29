@@ -2,7 +2,7 @@ import { Response } from 'express';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { AuthRequest } from '../middleware/auth';
-import User from '../models/User';
+import { one, q } from '../utils/db';
 import { sendPlanInvoiceEmail } from '../services/emailService';
 
 // ── Plan config ────────────────────────────────────────────────────────────────
@@ -115,14 +115,16 @@ export const verifyPlanPayment = async (req: AuthRequest, res: Response) => {
     const planExpiresAt = new Date(planFrom);
     planExpiresAt.setMonth(planExpiresAt.getMonth() + 1);
 
-    const user = await User.findByIdAndUpdate(
-      req.user!._id,
-      {
-        plan,
-        planExpiresAt,
-        planPaymentId: razorpay_payment_id,
-      },
-      { new: true }
+    const user = await one<{
+      email: string;
+      display_name: string;
+      plan: string;
+      plan_expires_at: Date;
+    }>(
+      `update users set plan = $2, plan_expires_at = $3, plan_payment_id = $4
+        where id = $1
+        returning email, display_name, plan, plan_expires_at`,
+      [req.user!._id, plan, planExpiresAt, razorpay_payment_id],
     );
 
     if (!user) {
@@ -133,7 +135,7 @@ export const verifyPlanPayment = async (req: AuthRequest, res: Response) => {
     console.log('Sending invoice email to:', user.email);
     sendPlanInvoiceEmail({
       toEmail: user.email,
-      displayName: user.displayName,
+      displayName: user.display_name,
       plan: plan.charAt(0).toUpperCase() + plan.slice(1),
       amount: PLAN_PRICES_INR[plan as Plan],
       paymentId: razorpay_payment_id,
@@ -145,7 +147,7 @@ export const verifyPlanPayment = async (req: AuthRequest, res: Response) => {
     res.json({
       success: true,
       plan: user.plan,
-      planExpiresAt: user.planExpiresAt,
+      planExpiresAt: user.plan_expires_at,
     });
   } catch (error) {
     console.error('verifyPlanPayment error:', JSON.stringify(error, null, 2));
@@ -158,21 +160,23 @@ export const verifyPlanPayment = async (req: AuthRequest, res: Response) => {
 
 export const getMyPlan = async (req: AuthRequest, res: Response) => {
   try {
-    const user = await User.findById(req.user!._id).select('plan planExpiresAt');
+    const user = await one<{ plan: string; plan_expires_at: Date | null }>(
+      'select plan, plan_expires_at from users where id = $1',
+      [req.user!._id],
+    );
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     // Auto-downgrade if plan has expired
     const now = new Date();
     let effectivePlan = user.plan || 'free';
-    if (effectivePlan !== 'free' && user.planExpiresAt && new Date(user.planExpiresAt) < now) {
+    if (effectivePlan !== 'free' && user.plan_expires_at && new Date(user.plan_expires_at) < now) {
       effectivePlan = 'free';
-      // Reset in DB
-      await User.findByIdAndUpdate(req.user!._id, { plan: 'free', planExpiresAt: null });
+      await q("update users set plan = 'free', plan_expires_at = null where id = $1", [req.user!._id]);
     }
 
     res.json({
       plan: effectivePlan,
-      planExpiresAt: effectivePlan === 'free' ? null : user.planExpiresAt,
+      planExpiresAt: effectivePlan === 'free' ? null : user.plan_expires_at,
     });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });

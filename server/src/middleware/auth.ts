@@ -1,38 +1,37 @@
 import { Request, Response, NextFunction } from 'express';
-import admin from '../utils/firebaseAdmin';
-import User, { IUser } from '../models/User';
+import { loadUser, PublicUser } from '../db/users';
+import { verifyToken } from '../utils/jwt';
 
 export interface AuthRequest extends Request {
-  user?: IUser;
-  firebaseUid?: string;
+  user?: PublicUser;
+}
+
+/** Pulls "Authorization: Bearer <jwt>" off a request, or null. */
+export function bearerToken(req: Request): string | null {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) return null;
+  const token = header.slice('Bearer '.length).trim();
+  return token || null;
 }
 
 const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  const token = authHeader.split(' ')[1];
-  try {
-    const decoded = await admin.auth().verifyIdToken(token);
-    req.firebaseUid = decoded.uid;
+  const token = bearerToken(req);
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
-    // Find or create user
-    let user = await User.findOne({ firebaseUid: decoded.uid });
-    if (!user) {
-      user = await User.create({
-        firebaseUid: decoded.uid,
-        email: decoded.email,
-        displayName: decoded.name || 'User',
-        photoURL: decoded.picture || '',
-      });
-    }
-    req.user = user;
-    next();
-  } catch (error) {
-  console.error('🔥 Firebase token verification failed:', error);
-  return res.status(401).json({ error: 'Invalid token' });
+  let userId: string;
+  try {
+    userId = verifyToken(token);
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' });
   }
+
+  // The token can outlive the account, so the user is loaded, not trusted from
+  // the payload — a deleted user must stop being able to act immediately.
+  const user = await loadUser(userId);
+  if (!user) return res.status(401).json({ error: 'Invalid token' });
+
+  req.user = user;
+  next();
 };
 
 export default authMiddleware;
